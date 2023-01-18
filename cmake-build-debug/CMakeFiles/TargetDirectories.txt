@@ -1,0 +1,3 @@
+/home/Emily/dev/ChessWithGuns/cmake-build-debug/CMakeFiles/CWG.dir
+/home/Emily/dev/ChessWithGuns/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/Emily/dev/ChessWithGuns/cmake-build-debug/CMakeFiles/rebuild_cache.dir

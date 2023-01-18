@@ -7,6 +7,7 @@
 #include <vector>
 #include <cstdint>
 #include <cmath>
+#include <cstdlib>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -128,7 +129,7 @@ private:
     SDL_Renderer* m_Renderer;
 
     std::unordered_map<SDL_KeyCode, bool> m_KeyStates;
-    bool m_MouseHeld;
+    bool m_MouseHeld{};
 
     friend class Texture;
 
@@ -347,6 +348,20 @@ enum class Weapon {
     AimTest
 };
 
+static float WeaponDamage(Weapon weapon) {
+    switch(weapon) {
+        case Weapon::None: return 0.0f;
+        case Weapon::AimTest: return 9.0f;
+    }
+}
+
+static float WeaponSpread(Weapon weapon) {
+    switch(weapon) {
+        case Weapon::None: return 0.0f;
+        case Weapon::AimTest: return ((15.0f * static_cast<float>(M_PI)) / 180.0f);
+    }
+}
+
 class WeaponTextures {
 public:
     Texture m_NoneDummy;
@@ -359,14 +374,66 @@ public:
     }
 };
 
+
+class Projectile {
+private:
+    static constexpr Dimension ProjectileScale = 4;
+
+public:
+    Dimension m_X;
+    Dimension m_Y;
+    float m_Rotation;
+    float m_Speed;
+    bool m_Shown;
+
+public:
+    Piece DoMove(Context& ctx, Board& board, Piece ignore) {
+        if(m_Shown) {
+            float dx = m_Speed * cos(m_Rotation);
+            float dy = m_Speed * sin(m_Rotation);
+            m_X += static_cast<Dimension>(dx);
+            m_Y += static_cast<Dimension>(dy);
+
+            ctx.DrawRect(m_X, m_Y, ProjectileScale, ProjectileScale, Color::Red);
+
+            if(!Board::IsInBounds(m_X / Board::SquareScale, m_Y / Board::SquareScale)) {
+                m_Shown = false;
+                return Piece::None;
+            }
+
+            Piece piece = board.Get(m_X / Board::SquareScale, m_Y / Board::SquareScale);
+            if(piece != Piece::None && piece != ignore) {
+                m_Shown = false;
+                return piece;
+            }
+        }
+
+        return Piece::None;
+    }
+};
+
+static float SignedRandRange(float range) {
+    return ((static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * (2 * range)) - range;
+}
+
 class Player {
+public:
+    static constexpr float MaxHealth = 100.0f;
+
 private:
     static constexpr Dimension IndicatorScale = Board::SquareScale / 2;
+    static constexpr float ProjectileSpeed = 10.0f;
 
     Piece m_Piece;
     Weapon m_Weapon;
     Dimension m_X;
     Dimension m_Y;
+
+public:
+    float m_Health{MaxHealth};
+
+public:
+    Projectile m_Projectile;
 
 public:
     Player(Piece piece, Weapon weapon) : m_X(0), m_Y(0), m_Piece(piece), m_Weapon(weapon) {};
@@ -392,7 +459,7 @@ public:
         for(PieceMove& move : piece_moves) {
             if(!move.m_Fill) {
                 if(board.Get(m_X + move.m_Dx, m_Y + move.m_Dy) == Piece::None) {
-                    positions.emplace_back(std::pair<Dimension, Dimension>{move.m_Dx, move.m_Dy});
+                    positions.emplace_back(move.m_Dx, move.m_Dy);
                     spdlog::trace("Added non-filling move ({},{})", move.m_Dx, move.m_Dy);
                 }
             }
@@ -427,7 +494,7 @@ public:
                         break;
                     }
 
-                    positions.emplace_back(std::pair<Dimension, Dimension>{dx, dy});
+                    positions.emplace_back(dx, dy);
                     spdlog::trace("Added filled move ({},{})", dx, dy);
                 }
             }
@@ -440,7 +507,7 @@ public:
         for(auto& position : EnumerateValidPositions(board)) {
             if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) continue;
 
-            ctx.DrawRect((m_X + position.first + IndicatorScale / 2) * Board::SquareScale, (m_Y + position.second + IndicatorScale / 2) * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
+            ctx.DrawRect((m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
 
             auto pos = ctx.GetMousePosition();
             if(IsPointInRect(pos.first, pos.second, (m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
@@ -453,14 +520,31 @@ public:
         return false;
     }
 
-    void DrawWeapon(Context& ctx, WeaponTextures& textures) {
+    bool DoWeapon(Context& ctx, WeaponTextures& textures) {
         auto pos = ctx.GetMousePosition();
         float rot = atan(static_cast<float>(pos.second - m_Y * Board::SquareScale) / static_cast<float>(pos.first - m_X * Board::SquareScale));
         textures.m_Textures.at(m_Weapon).get().Draw(ctx, m_X * Board::SquareScale, m_Y * Board::SquareScale, Board::SquareScale, Board::SquareScale, (rot * 180.0f) / static_cast<float>(M_PI));
+
+        if(ctx.WasMousePressed()) {
+            rot += pos.first - m_X * Board::SquareScale < 0 ? M_PI : 0;
+            float spread = SignedRandRange(WeaponSpread(m_Weapon));
+            rot += SignedRandRange(WeaponSpread(m_Weapon));
+            m_Projectile = Projectile{m_X * Board::SquareScale, m_Y * Board::SquareScale, rot, ProjectileSpeed, true};
+            return true;
+        }
+
+        return false;
+    }
+
+    bool Hurt(float damage) {
+        m_Health -= damage;
+        return m_Health <= 0.0f;
     }
 };
 
 int main() {
+    srand(time(nullptr));
+
     spdlog::set_level(spdlog::level::debug);
     spdlog::info("Initializing CWG, hold onto your hats...");
 
@@ -519,13 +603,30 @@ int main() {
         board.Draw(ctx);
 
         if(white_turn) {
-            if(white.DoMoves(ctx, board)) white_turn = false;
-            white.DrawWeapon(ctx, weapon_textures);
+            if(white.DoMoves(ctx, board) || white.DoWeapon(ctx, weapon_textures)) white_turn = false;
         }
         else {
-            if(black.DoMoves(ctx, board)) white_turn = true;
-            black.DrawWeapon(ctx, weapon_textures);
+            if(black.DoMoves(ctx, board) || black.DoWeapon(ctx, weapon_textures)) white_turn = true;
         }
+        Piece hit = white.m_Projectile.DoMove(ctx, board, white_piece);
+        if(hit != Piece::None) {
+            spdlog::debug("White projectile hit - Black HP: {}", black.m_Health);
+            if(black.Hurt(WeaponDamage(white_weapon) + SignedRandRange(WeaponSpread(white_weapon) / 10))) {
+                SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "White won!", nullptr));
+                return 0;
+            }
+        }
+        hit = black.m_Projectile.DoMove(ctx, board, black_piece);
+        if(hit != Piece::None) {
+            spdlog::debug("Black projectile hit - White HP: {}", white.m_Health);
+            if(white.Hurt(WeaponDamage(black_weapon) + SignedRandRange(WeaponSpread(black_weapon) / 10))) {
+                SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "Black won!", nullptr));
+                return 0;
+            }
+        }
+
+        ctx.DrawRect(Board::SquareScale * 8, 0, static_cast<float>(640 - Board::SquareScale * 8) * (black.m_Health / Player::MaxHealth), 32, Color::Black);
+        ctx.DrawRect(Board::SquareScale * 8, 480 - 32, static_cast<float>(640 - Board::SquareScale * 8) * (white.m_Health / Player::MaxHealth), 32, Color::White);
     }
 
     spdlog::info("Tearing down...");
