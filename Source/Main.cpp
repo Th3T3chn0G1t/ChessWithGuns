@@ -8,11 +8,14 @@
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
+#include <iostream>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
 #include <spdlog/spdlog.h>
+
+#include <csv2/writer.hpp>
 
 enum class Color {
     Black,
@@ -345,13 +348,24 @@ public:
 enum class Weapon {
     None,
 
-    AimTest
+    AimTest,
+
+    Pistol,
+    Shotgun,
+    ScienceGun,
+    Rifle,
+    RocketLauncher
 };
 
 static float WeaponDamage(Weapon weapon) {
     switch(weapon) {
         case Weapon::None: return 0.0f;
         case Weapon::AimTest: return 9.0f;
+        case Weapon::Pistol: return 7.0f;
+        case Weapon::Shotgun: return 4.0f;
+        case Weapon::ScienceGun: return 9.0f;
+        case Weapon::Rifle: return 9.0f;
+        case Weapon::RocketLauncher: return 35.0f;
     }
 }
 
@@ -359,6 +373,35 @@ static float WeaponSpread(Weapon weapon) {
     switch(weapon) {
         case Weapon::None: return 0.0f;
         case Weapon::AimTest: return ((15.0f * static_cast<float>(M_PI)) / 180.0f);
+        case Weapon::Pistol: return ((10.0f * static_cast<float>(M_PI)) / 180.0f);
+        case Weapon::Shotgun: return ((35.0f * static_cast<float>(M_PI)) / 180.0f);
+        case Weapon::ScienceGun: return ((15.0f * static_cast<float>(M_PI)) / 180.0f);
+        case Weapon::Rifle: return ((5.0f * static_cast<float>(M_PI)) / 180.0f);
+        case Weapon::RocketLauncher: return ((35.0f * static_cast<float>(M_PI)) / 180.0f);
+    }
+}
+
+static float WeaponVariance(Weapon weapon) {
+    switch(weapon) {
+        case Weapon::None: return 0.0f;
+        case Weapon::AimTest: return 4.0f;
+        case Weapon::Pistol: return 2.0f;
+        case Weapon::Shotgun: return 1.0f;
+        case Weapon::ScienceGun: return 3.0f;
+        case Weapon::Rifle: return 4.0f;
+        case Weapon::RocketLauncher: return 10.0f;
+    }
+}
+
+static Dimension WeaponCount(Weapon weapon) {
+    switch(weapon) {
+        case Weapon::None: return 0;
+        case Weapon::AimTest: return 3;
+        case Weapon::Pistol: return 1;
+        case Weapon::Shotgun: return 7;
+        case Weapon::ScienceGun: return 3;
+        case Weapon::Rifle: return 1;
+        case Weapon::RocketLauncher: return 1;
     }
 }
 
@@ -371,6 +414,11 @@ public:
         m_Textures.insert({Weapon::None, m_NoneDummy});
 
         m_Textures.insert({Weapon::AimTest, loader.Get("AimTest.png", ctx)});
+        m_Textures.insert({Weapon::Pistol, loader.Get("Pistol.png", ctx)});
+        m_Textures.insert({Weapon::Shotgun, loader.Get("Shotgun.png", ctx)});
+        m_Textures.insert({Weapon::ScienceGun, loader.Get("ScienceGun.png", ctx)});
+        m_Textures.insert({Weapon::Rifle, loader.Get("Rifle.png", ctx)});
+        m_Textures.insert({Weapon::RocketLauncher, loader.Get("RocketLauncher.png", ctx)});
     }
 };
 
@@ -380,8 +428,8 @@ private:
     static constexpr Dimension ProjectileScale = 4;
 
 public:
-    Dimension m_X;
-    Dimension m_Y;
+    float m_X;
+    float m_Y;
     float m_Rotation;
     float m_Speed;
     bool m_Shown;
@@ -391,17 +439,20 @@ public:
         if(m_Shown) {
             float dx = m_Speed * cos(m_Rotation);
             float dy = m_Speed * sin(m_Rotation);
-            m_X += static_cast<Dimension>(dx);
-            m_Y += static_cast<Dimension>(dy);
+            m_X += dx;
+            m_Y += dy;
 
-            ctx.DrawRect(m_X, m_Y, ProjectileScale, ProjectileScale, Color::Red);
+            Dimension x = static_cast<Dimension>(m_X);
+            Dimension y = static_cast<Dimension>(m_Y);
 
-            if(!Board::IsInBounds(m_X / Board::SquareScale, m_Y / Board::SquareScale)) {
+            ctx.DrawRect(x, y, ProjectileScale, ProjectileScale, Color::Red);
+
+            if(!Board::IsInBounds(x / Board::SquareScale, y / Board::SquareScale)) {
                 m_Shown = false;
                 return Piece::None;
             }
 
-            Piece piece = board.Get(m_X / Board::SquareScale, m_Y / Board::SquareScale);
+            Piece piece = board.Get(x / Board::SquareScale, y / Board::SquareScale);
             if(piece != Piece::None && piece != ignore) {
                 m_Shown = false;
                 return piece;
@@ -423,17 +474,25 @@ public:
 private:
     static constexpr Dimension IndicatorScale = Board::SquareScale / 2;
     static constexpr float ProjectileSpeed = 10.0f;
+    static constexpr Dimension MaxProjectiles = 10;
 
     Piece m_Piece;
     Weapon m_Weapon;
+
+public:
     Dimension m_X;
     Dimension m_Y;
 
-public:
     float m_Health{MaxHealth};
+    float m_Damage{};
+
+    Dimension m_Turns;
+    std::vector<float> m_HealthPerTurn;
+    std::vector<float> m_DamagePerTurn;
+    std::vector<float> m_DistancePerTurn;
 
 public:
-    Projectile m_Projectile;
+    std::array<Projectile, MaxProjectiles> m_Projectiles{};
 
 public:
     Player(Piece piece, Weapon weapon) : m_X(0), m_Y(0), m_Piece(piece), m_Weapon(weapon) {};
@@ -527,9 +586,14 @@ public:
 
         if(ctx.WasMousePressed()) {
             rot += pos.first - m_X * Board::SquareScale < 0 ? M_PI : 0;
-            float spread = SignedRandRange(WeaponSpread(m_Weapon));
-            rot += SignedRandRange(WeaponSpread(m_Weapon));
-            m_Projectile = Projectile{m_X * Board::SquareScale, m_Y * Board::SquareScale, rot, ProjectileSpeed, true};
+            for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
+                for(Projectile& projectile : m_Projectiles) {
+                    if(!projectile.m_Shown) {
+                        projectile = Projectile{static_cast<float>(m_X * Board::SquareScale), static_cast<float>(m_Y * Board::SquareScale), rot + SignedRandRange(WeaponSpread(m_Weapon)), ProjectileSpeed, true};
+                        break;
+                    }
+                }
+            }
             return true;
         }
 
@@ -541,6 +605,25 @@ public:
         return m_Health <= 0.0f;
     }
 };
+
+using Row = std::array<std::string, 5>;
+
+static void WriteStats(Player& black, Player& white) {
+    std::ofstream stream("game.csv");
+    csv2::Writer<csv2::delimiter<','>> writer(stream);
+
+    std::vector<Row> rows {};
+
+    rows.emplace_back(Row{"BlackHealthPerTurn", "BlackDamagePerTurn", "WhiteHealthPerTurn", "WhiteDamagePerTurn", "DistancePerTurn"});
+
+    Dimension min_turns = black.m_Turns < white.m_Turns ? black.m_Turns : white.m_Turns;
+    for(Dimension i = 0; i < min_turns; ++i) {
+        rows.emplace_back(Row{fmt::to_string(black.m_HealthPerTurn[i]), fmt::to_string(black.m_DamagePerTurn[i]), fmt::to_string(white.m_HealthPerTurn[i]), fmt::to_string(white.m_DamagePerTurn[i]), fmt::to_string(black.m_DistancePerTurn[i])});
+    }
+
+    writer.write_rows(rows);
+    stream.close();
+}
 
 int main() {
     srand(time(nullptr));
@@ -555,7 +638,12 @@ int main() {
 
     SDL_MessageBoxButtonData weapon_buttons[] {
         {0, (int) Weapon::None, "None"},
-        {0, (int) Weapon::AimTest, "Aim Test"}
+        {0, (int) Weapon::AimTest, "Aim Test"},
+        {0, (int) Weapon::Pistol, "Pistol"},
+        {0, (int) Weapon::Shotgun, "Shotgun"},
+        {0, (int) Weapon::ScienceGun, "Science Gun"},
+        {0, (int) Weapon::Rifle, "Rifle"},
+        {0, (int) Weapon::RocketLauncher, "Rocket Launcher"}
     };
 
     Piece white_piece = Piece::None;
@@ -603,25 +691,58 @@ int main() {
         board.Draw(ctx);
 
         if(white_turn) {
-            if(white.DoMoves(ctx, board) || white.DoWeapon(ctx, weapon_textures)) white_turn = false;
-        }
-        else {
-            if(black.DoMoves(ctx, board) || black.DoWeapon(ctx, weapon_textures)) white_turn = true;
-        }
-        Piece hit = white.m_Projectile.DoMove(ctx, board, white_piece);
-        if(hit != Piece::None) {
-            spdlog::debug("White projectile hit - Black HP: {}", black.m_Health);
-            if(black.Hurt(WeaponDamage(white_weapon) + SignedRandRange(WeaponSpread(white_weapon) / 10))) {
-                SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "White won!", nullptr));
-                return 0;
+            if(white.DoMoves(ctx, board) || white.DoWeapon(ctx, weapon_textures)) {
+                white.m_Turns++;
+                white.m_HealthPerTurn.emplace_back(white.m_Health);
+                white.m_DamagePerTurn.emplace_back(white.m_Damage);
+                float dx = static_cast<float>(white.m_X - black.m_X);
+                float dy = static_cast<float>(white.m_Y - black.m_Y);
+                float dist = sqrtf(dx*dx + dx*dy);
+                spdlog::debug("Position delta +({},{}) -> dist: {}", dx, dy, dist);
+                white.m_DistancePerTurn.emplace_back(dist);
+                white_turn = false;
             }
         }
-        hit = black.m_Projectile.DoMove(ctx, board, black_piece);
-        if(hit != Piece::None) {
-            spdlog::debug("Black projectile hit - White HP: {}", white.m_Health);
-            if(white.Hurt(WeaponDamage(black_weapon) + SignedRandRange(WeaponSpread(black_weapon) / 10))) {
-                SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "Black won!", nullptr));
-                return 0;
+        else {
+            if(black.DoMoves(ctx, board) || black.DoWeapon(ctx, weapon_textures)) {
+                black.m_Turns++;
+                black.m_HealthPerTurn.emplace_back(black.m_Health);
+                black.m_DamagePerTurn.emplace_back(black.m_Damage);
+                float dx = static_cast<float>(white.m_X - black.m_X);
+                float dy = static_cast<float>(white.m_Y - black.m_Y);
+                float dist = sqrtf(dx*dx + dx*dy);
+                spdlog::debug("Position delta +({},{}) -> dist: {}", dx, dy, dist);
+                black.m_DistancePerTurn.emplace_back(dist);
+                white_turn = true;
+            }
+        }
+
+        for(Projectile& projectile : white.m_Projectiles) {
+            Piece hit = projectile.DoMove(ctx, board, white_piece);
+            if(hit != Piece::None) {
+                spdlog::debug("White projectile hit - Black HP: {}", black.m_Health);
+                projectile.m_Shown = false;
+                float damage = WeaponDamage(white_weapon) + SignedRandRange(WeaponVariance(white_weapon));
+                white.m_Damage += damage;
+                if(black.Hurt(damage)) {
+                    SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "White won!", nullptr));
+                    WriteStats(black, white);
+                    return 0;
+                }
+            }
+        }
+        for(Projectile& projectile : black.m_Projectiles) {
+            Piece hit = projectile.DoMove(ctx, board, black_piece);
+            if(hit != Piece::None) {
+                spdlog::debug("Black projectile hit - White HP: {}", white.m_Health);
+                projectile.m_Shown = false;
+                float damage = WeaponDamage(black_weapon) + SignedRandRange(WeaponVariance(black_weapon));
+                black.m_Damage += damage;
+                if(white.Hurt(damage)) {
+                    SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "Black won!", nullptr));
+                    WriteStats(black, white);
+                    return 0;
+                }
             }
         }
 

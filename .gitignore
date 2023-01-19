@@ -1,2 +1,5 @@
 cmake-*/
 build/
+game.csv
+__pycache__/
+.idea/
