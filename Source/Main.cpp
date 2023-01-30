@@ -467,6 +467,10 @@ static float SignedRandRange(float range) {
     return ((static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * (2 * range)) - range;
 }
 
+static int UnsignedRandRange(int range) {
+    return static_cast<int>((static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * range);
+}
+
 class Player {
 public:
     static constexpr float MaxHealth = 100.0f;
@@ -486,12 +490,14 @@ public:
     float m_Health{MaxHealth};
     float m_Damage{};
 
-    Dimension m_Turns;
+    Dimension m_Turns{};
     std::vector<float> m_HealthPerTurn;
     std::vector<float> m_DamagePerTurn;
     std::vector<float> m_DistancePerTurn;
 
+
 public:
+    bool m_AI{};
     std::array<Projectile, MaxProjectiles> m_Projectiles{};
 
 public:
@@ -563,29 +569,58 @@ public:
     }
 
     bool DoMoves(Context& ctx, Board& board) {
-        for(auto& position : EnumerateValidPositions(board)) {
+        auto positions = EnumerateValidPositions(board);
+        for(auto& position : positions) {
             if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) continue;
 
             ctx.DrawRect((m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
 
-            auto pos = ctx.GetMousePosition();
-            if(IsPointInRect(pos.first, pos.second, (m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
-                if(ctx.WasMousePressed()) {
-                    Move(board, position.first, position.second);
-                    return true;
+            if(!m_AI) {
+                auto pos = ctx.GetMousePosition();
+                if(IsPointInRect(pos.first, pos.second, (m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
+                    if(ctx.WasMousePressed()) {
+                        Move(board, position.first, position.second);
+                        return true;
+                    }
                 }
             }
         }
+
+        if(m_AI && UnsignedRandRange(2)) {
+            if(positions.empty()) return false;
+            int iposition = UnsignedRandRange((int) positions.size());
+            spdlog::debug("{}", iposition);
+            auto& position = positions[iposition];
+            if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) return false;
+            Move(board, position.first, position.second);
+            return true;
+        }
+
         return false;
     }
 
-    bool DoWeapon(Context& ctx, WeaponTextures& textures) {
+    bool DoWeapon(Context& ctx, WeaponTextures& textures, int other_player_x, int other_player_y) {
         auto pos = ctx.GetMousePosition();
         float rot = atan(static_cast<float>(pos.second - m_Y * Board::SquareScale) / static_cast<float>(pos.first - m_X * Board::SquareScale));
         textures.m_Textures.at(m_Weapon).get().Draw(ctx, m_X * Board::SquareScale, m_Y * Board::SquareScale, Board::SquareScale, Board::SquareScale, (rot * 180.0f) / static_cast<float>(M_PI));
 
-        if(ctx.WasMousePressed()) {
-            rot += pos.first - m_X * Board::SquareScale < 0 ? M_PI : 0;
+        if(!m_AI) {
+            if(ctx.WasMousePressed()) {
+                rot += pos.first - m_X * Board::SquareScale < 0 ? M_PI : 0;
+                for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
+                    for(Projectile& projectile : m_Projectiles) {
+                        if(!projectile.m_Shown) {
+                            projectile = Projectile{static_cast<float>(m_X * Board::SquareScale), static_cast<float>(m_Y * Board::SquareScale), rot + SignedRandRange(WeaponSpread(m_Weapon)), ProjectileSpeed, true};
+                            break;
+                        }
+                    }
+                }
+                return true;
+            }
+        }
+        else if(UnsignedRandRange(2)) {
+            rot = atan(static_cast<float>(other_player_y - m_Y) / static_cast<float>(other_player_x - m_X));
+            rot += other_player_x - m_X < 0 ? M_PI : 0;
             for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
                 for(Projectile& projectile : m_Projectiles) {
                     if(!projectile.m_Shown) {
@@ -614,9 +649,10 @@ static void WriteStats(Player& black, Player& white) {
 
     std::vector<Row> rows {};
 
-    rows.emplace_back(Row{"BlackHealthPerTurn", "BlackDamagePerTurn", "WhiteHealthPerTurn", "WhiteDamagePerTurn", "DistancePerTurn"});
+//    rows.emplace_back(Row{"BlackHealthPerTurn", "BlackDamagePerTurn", "WhiteHealthPerTurn", "WhiteDamagePerTurn", "DistancePerTurn"});
 
     Dimension min_turns = black.m_Turns < white.m_Turns ? black.m_Turns : white.m_Turns;
+    spdlog::debug("{} {}", black.m_Turns, white.m_Turns);
     for(Dimension i = 0; i < min_turns; ++i) {
         rows.emplace_back(Row{fmt::to_string(black.m_HealthPerTurn[i]), fmt::to_string(black.m_DamagePerTurn[i]), fmt::to_string(white.m_HealthPerTurn[i]), fmt::to_string(white.m_DamagePerTurn[i]), fmt::to_string(black.m_DistancePerTurn[i])});
     }
@@ -684,6 +720,9 @@ int main() {
     Player black(black_piece, black_weapon);
     black.Move(board, 0, 0);
 
+    black.m_AI = true;
+    white.m_AI = true;
+
     bool white_turn = true;
 
     while(ctx.Update()) {
@@ -691,7 +730,7 @@ int main() {
         board.Draw(ctx);
 
         if(white_turn) {
-            if(white.DoMoves(ctx, board) || white.DoWeapon(ctx, weapon_textures)) {
+            if(white.DoMoves(ctx, board) || white.DoWeapon(ctx, weapon_textures, black.m_X, black.m_Y)) {
                 white.m_Turns++;
                 white.m_HealthPerTurn.emplace_back(white.m_Health);
                 white.m_DamagePerTurn.emplace_back(white.m_Damage);
@@ -704,7 +743,7 @@ int main() {
             }
         }
         else {
-            if(black.DoMoves(ctx, board) || black.DoWeapon(ctx, weapon_textures)) {
+            if(black.DoMoves(ctx, board) || black.DoWeapon(ctx, weapon_textures, white.m_X, white.m_Y)) {
                 black.m_Turns++;
                 black.m_HealthPerTurn.emplace_back(black.m_Health);
                 black.m_DamagePerTurn.emplace_back(black.m_Damage);
