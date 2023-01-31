@@ -122,7 +122,66 @@ static std::vector<PieceMove> EnumeratePieceMoves(Piece piece) {
     }
 }
 
+class Context;
+
+template<class T, Dimension ResourcePoolSize>
+class ResourceLoader {
+private:
+    std::string m_ResourceDirectory;
+    std::array<T, ResourcePoolSize> m_Resources;
+    Dimension m_ResourcesLast{0};
+    std::unordered_map<std::string, Dimension> m_Map;
+
+public:
+    explicit ResourceLoader(std::string resource_directory) : m_ResourceDirectory(std::move(resource_directory)) {}
+
+    T& Get(const std::string& path, Context& ctx) {
+        auto emplaced = m_Map.try_emplace(path, ResourcePoolSize);
+        auto it = emplaced.first;
+        auto added = emplaced.second;
+
+        if(added) {
+            std::string full_path = m_ResourceDirectory + "/" + path;
+            m_Resources[m_ResourcesLast] = std::move(T(full_path, ctx));
+            it->second = m_ResourcesLast++;
+        }
+
+        return m_Resources[it->second];
+    }
+};
+
 class Texture;
+struct TextureLoaderWrapper;
+
+class Board {
+public:
+    constexpr static Dimension SquareScale = 64;
+    constexpr static Dimension Width = 3;
+    constexpr static Dimension Height = 5;
+
+private:
+
+    std::array<Piece, Width * Height> m_Board{};
+
+    std::unordered_map<Piece, std::reference_wrapper<Texture>> m_PieceTextures;
+
+public:
+    static bool IsInBounds(Dimension x, Dimension y) {
+        return !(x < 0 || y < 0 || x >= Board::Width || y >= Board::Height);
+    }
+
+    Board(TextureLoaderWrapper& loader, Context& ctx);
+
+    void Draw(Context& ctx);
+
+    void Set(Dimension x, Dimension y, Piece piece) {
+        m_Board[x + Width * y] = piece;
+    }
+
+    Piece Get(Dimension x, Dimension y) {
+        return m_Board[x + Width * y];
+    }
+};
 
 class Context {
 private:
@@ -134,8 +193,9 @@ private:
 
     static constexpr std::string Title = "Chess with Guns";
 public:
-    static constexpr Dimension Width = 640;
-    static constexpr Dimension Height = 448;
+    static constexpr Dimension SidebarWidth = 192;
+    static constexpr Dimension Width = Board::Width * Board::SquareScale + SidebarWidth;
+    static constexpr Dimension Height = Board::Height * Board::SquareScale;
 private:
     WindowHandle m_Window;
     RendererHandle m_Renderer;
@@ -259,6 +319,8 @@ private:
     Dimension m_Height{};
 
     bool m_Dummy;
+public:
+    static Texture Dummy;
 
 public:
     Texture() : m_Dummy(true) {};
@@ -293,88 +355,46 @@ public:
     }
 };
 
-template<class T, Dimension ResourcePoolSize>
-class ResourceLoader {
-private:
-    std::string m_ResourceDirectory;
-    std::array<T, ResourcePoolSize> m_Resources;
-    Dimension m_ResourcesLast{0};
-    std::unordered_map<std::string, Dimension> m_Map;
-
-public:
-    explicit ResourceLoader(std::string resource_directory) : m_ResourceDirectory(std::move(resource_directory)) {}
-
-    T& Get(const std::string& path, Context& ctx) {
-        auto emplaced = m_Map.try_emplace(path, ResourcePoolSize);
-        auto it = emplaced.first;
-        auto added = emplaced.second;
-
-        if(added) {
-            std::string full_path = m_ResourceDirectory + "/" + path;
-            m_Resources[m_ResourcesLast] = std::move(T(full_path, ctx));
-            it->second = m_ResourcesLast++;
-        }
-
-        return m_Resources[it->second];
-    }
-};
+Texture Texture::Dummy{};
 
 using TextureLoader = ResourceLoader<Texture, 1024>;
 
-class Board {
-public:
-    constexpr static Dimension SquareScale = 56;
+struct TextureLoaderWrapper {
+    TextureLoader m_Loader;
 
-private:
-    constexpr static Dimension Width = 8;
-    constexpr static Dimension Height = 8;
+    TextureLoaderWrapper(TextureLoader loader) : m_Loader(std::move(loader)) {}
+    operator TextureLoader&() { return m_Loader; }
 
-    std::array<Piece, Width * Height> m_Board{};
-
-    Texture m_NoneDummy;
-    std::unordered_map<Piece, std::reference_wrapper<Texture>> m_PieceTextures;
-
-public:
-    static bool IsInBounds(Dimension x, Dimension y) {
-        return !(x < 0 || y < 0 || x >= Board::Width || y >= Board::Height);
-    }
-
-    Board(TextureLoader& loader, Context& ctx) : m_Board{}, m_NoneDummy(), m_PieceTextures{} {
-        m_PieceTextures.insert({Piece::None, m_NoneDummy});
-
-        m_PieceTextures.insert({Piece::WhitePawn, loader.Get("WhitePawn.png", ctx)});
-        m_PieceTextures.insert({Piece::WhiteRook, loader.Get("WhiteRook.png", ctx)});
-        m_PieceTextures.insert({Piece::WhiteBishop, loader.Get("WhiteBishop.png", ctx)});
-        m_PieceTextures.insert({Piece::WhiteKnight, loader.Get("WhiteKnight.png", ctx)});
-        m_PieceTextures.insert({Piece::WhiteKing, loader.Get("WhiteKing.png", ctx)});
-        m_PieceTextures.insert({Piece::WhiteQueen, loader.Get("WhiteQueen.png", ctx)});
-
-        m_PieceTextures.insert({Piece::BlackPawn, loader.Get("BlackPawn.png", ctx)});
-        m_PieceTextures.insert({Piece::BlackRook, loader.Get("BlackRook.png", ctx)});
-        m_PieceTextures.insert({Piece::BlackBishop, loader.Get("BlackBishop.png", ctx)});
-        m_PieceTextures.insert({Piece::BlackKnight, loader.Get("BlackKnight.png", ctx)});
-        m_PieceTextures.insert({Piece::BlackKing, loader.Get("BlackKing.png", ctx)});
-        m_PieceTextures.insert({Piece::BlackQueen, loader.Get("BlackQueen.png", ctx)});
-    }
-
-    void Draw(Context& ctx) {
-        for(Dimension i = 0; i < Height; ++i) {
-            for(Dimension j = 0; j < Width; ++j) {
-                ctx.DrawRect(j * SquareScale, i * SquareScale, SquareScale, SquareScale, (j + i % 2) % 2 ? Color::Black : Color::White);
-                m_PieceTextures.at(m_Board[j + i * Width]).get().Draw(ctx, j * SquareScale, i * SquareScale, SquareScale, SquareScale);
-            }
-        }
-    }
-
-    void Set(Dimension x, Dimension y, Piece piece) {
-        m_Board[x + Width * y] = piece;
-    }
-
-    Piece Get(Dimension x, Dimension y) {
-        return m_Board[x + Width * y];
-    }
+    Texture& Get(const std::string& path, Context& ctx) { return m_Loader.Get(path, ctx); }
 };
 
+Board::Board(TextureLoaderWrapper& loader, Context& ctx) : m_Board{}, m_PieceTextures{} {
+    m_PieceTextures.insert({Piece::None, Texture::Dummy});
+
+    m_PieceTextures.insert({Piece::WhitePawn, loader.Get("WhitePawn.png", ctx)});
+    m_PieceTextures.insert({Piece::WhiteRook, loader.Get("WhiteRook.png", ctx)});
+    m_PieceTextures.insert({Piece::WhiteBishop, loader.Get("WhiteBishop.png", ctx)});
+    m_PieceTextures.insert({Piece::WhiteKnight, loader.Get("WhiteKnight.png", ctx)});
+    m_PieceTextures.insert({Piece::WhiteKing, loader.Get("WhiteKing.png", ctx)});
+    m_PieceTextures.insert({Piece::WhiteQueen, loader.Get("WhiteQueen.png", ctx)});
+
+    m_PieceTextures.insert({Piece::BlackPawn, loader.Get("BlackPawn.png", ctx)});
+    m_PieceTextures.insert({Piece::BlackRook, loader.Get("BlackRook.png", ctx)});
+    m_PieceTextures.insert({Piece::BlackBishop, loader.Get("BlackBishop.png", ctx)});
+    m_PieceTextures.insert({Piece::BlackKnight, loader.Get("BlackKnight.png", ctx)});
+    m_PieceTextures.insert({Piece::BlackKing, loader.Get("BlackKing.png", ctx)});
+    m_PieceTextures.insert({Piece::BlackQueen, loader.Get("BlackQueen.png", ctx)});
+}
+
+
+void Board::Draw(Context& ctx) {
+    for(Dimension i = 0; i < Height; ++i) {
+        for(Dimension j = 0; j < Width; ++j) {
+            ctx.DrawRect(j * SquareScale, i * SquareScale, SquareScale, SquareScale, (j + i % 2) % 2 ? Color::Black : Color::White);
+            m_PieceTextures.at(m_Board[j + i * Width]).get().Draw(ctx, j * SquareScale, i * SquareScale, SquareScale, SquareScale);
+        }
+    }
+}
 
 enum class Weapon {
     None,
@@ -427,7 +447,7 @@ static float WeaponVariance(Weapon weapon) {
 static Dimension WeaponCount(Weapon weapon) {
     switch(weapon) {
         case Weapon::None: return 0;
-        case Weapon::AimTest: return 3;
+        case Weapon::AimTest: return 300;
         case Weapon::Pistol: return 1;
         case Weapon::Shotgun: return 7;
         case Weapon::ScienceGun: return 3;
@@ -672,7 +692,7 @@ static void WriteStats(Player& black, Player& white) {
 
 int main() {
     Context ctx{};
-    TextureLoader loader("Resources");
+    TextureLoaderWrapper loader(TextureLoader("Resources"));
     Board board(loader, ctx);
     WeaponTextures weapon_textures(loader, ctx);
 
@@ -687,7 +707,7 @@ int main() {
     };
 
     auto white_piece = Context::ChoiceDialog<Piece>(
-    {
+      {
             { Piece::WhitePawn, "Pawn" },
             { Piece::WhiteRook, "Rook"},
             { Piece::WhiteBishop, "Bishop"},
@@ -701,10 +721,10 @@ int main() {
     auto white_weapon = Context::ChoiceDialog<Weapon>(weapons, "White Weapon", "White, please choose your weapon!");
     Player white(white_piece, white_weapon);
     white.m_AI = Context::ChoiceDialog("White AI", "Should White be AI-controlled?");
-    white.Move(board, 7, 7);
+    white.Move(board, Board::Width - 1, Board::Height - 1);
 
     auto black_piece = Context::ChoiceDialog<Piece>(
-    {
+        {
             { Piece::BlackPawn, "Pawn" },
             { Piece::BlackRook, "Rook"},
             { Piece::BlackBishop, "Bishop"},
@@ -778,8 +798,8 @@ int main() {
             }
         }
 
-        ctx.DrawRect(Board::SquareScale * 8, 0, static_cast<Dimension>(static_cast<float>(Context::Width - Board::SquareScale * 8) * (black.m_Health / Player::MaxHealth)), 32, Color::Black);
-        ctx.DrawRect(Board::SquareScale * 8, Context::Height - 32, static_cast<Dimension>(static_cast<float>(Context::Width - Board::SquareScale * 8) * (white.m_Health / Player::MaxHealth)), 32, Color::White);
-        ctx.DrawRect(Board::SquareScale * 8, 0, 2, Context::Height, Color::Red);
+        ctx.DrawRect(Context::Width - Context::SidebarWidth, 0, static_cast<Dimension>(static_cast<float>(Context::Width - Context::SidebarWidth) * (black.m_Health / Player::MaxHealth)), 32, Color::Black);
+        ctx.DrawRect(Context::Width - Context::SidebarWidth, Context::Height - 32, static_cast<Dimension>(static_cast<float>(Context::Width - Context::SidebarWidth) * (white.m_Health / Player::MaxHealth)), 32, Color::White);
+        ctx.DrawRect(Context::Width - Context::SidebarWidth, 0, 2, Context::Height, Color::Red);
     }
 }
