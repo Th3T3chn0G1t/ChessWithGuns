@@ -1,3 +1,4 @@
+#include <memory>
 #include <stdexcept>
 #include <array>
 #include <string>
@@ -7,6 +8,7 @@
 #include <vector>
 #include <random>
 #include <cmath>
+#include <climits>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -123,12 +125,20 @@ static std::vector<PieceMove> EnumeratePieceMoves(Piece piece) {
 class Texture;
 
 class Context {
+private:
+    static void WindowDeleter(SDL_Window* window) { SDL_DestroyWindow(window); };
+    using WindowHandle = std::unique_ptr<SDLHandle<SDL_Window>, SDLDestructor<SDL_Window, WindowDeleter>>;
+
+    static void RendererDeleter(SDL_Renderer* renderer) { SDL_DestroyRenderer(renderer); };
+    using RendererHandle = std::unique_ptr<SDLHandle<SDL_Renderer>, SDLDestructor<SDL_Renderer, RendererDeleter>>;
+
+    static constexpr std::string Title = "Chess with Guns";
 public:
     static constexpr Dimension Width = 640;
     static constexpr Dimension Height = 448;
 private:
-    SDL_Window* m_Window;
-    SDL_Renderer* m_Renderer;
+    WindowHandle m_Window;
+    RendererHandle m_Renderer;
 
     std::unordered_map<SDL_KeyCode, bool> m_KeyStates;
     bool m_MouseHeld{};
@@ -143,18 +153,21 @@ public:
         result = IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF);
         if(result < 0) throw std::runtime_error("Could not init SDL2_image");
 
-        SDLNullCheck(m_Window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN));
-        SDLNullCheck(m_Renderer = SDL_CreateRenderer(m_Window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC));
+        SDL_Window* window = SDL_CreateWindow(Title.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+        SDLNullCheck(window);
+        m_Window.reset(window);
+
+        SDL_Renderer* renderer = SDL_CreateRenderer(m_Window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        SDLNullCheck(renderer);
+        m_Renderer.reset(renderer);
     }
 
     ~Context() {
-        SDL_DestroyWindow(m_Window);
-        SDL_DestroyRenderer(m_Renderer);
         SDL_Quit();
     }
 
     bool Update() {
-        SDL_RenderPresent(m_Renderer);
+        SDL_RenderPresent(m_Renderer.get());
 
         SDL_Event event{};
         while(SDL_PollEvent(&event)) {
@@ -173,19 +186,19 @@ public:
 
     void SetColor(Color color) {
         SDL_Color sdl_color = ColorToSDL(color);
-        SDLResultCheck(SDL_SetRenderDrawColor(m_Renderer, sdl_color.r, sdl_color.g, sdl_color.b, sdl_color.a));
+        SDLResultCheck(SDL_SetRenderDrawColor(m_Renderer.get(), sdl_color.r, sdl_color.g, sdl_color.b, sdl_color.a));
     }
 
     void Clear(Color color) {
         SetColor(color);
-        SDLResultCheck(SDL_RenderClear(m_Renderer));
+        SDLResultCheck(SDL_RenderClear(m_Renderer.get()));
     }
 
     void DrawRect(Dimension x, Dimension y, Dimension w, Dimension h, Color color) {
         SetColor(color);
 
         SDL_Rect rect {x, y, w, h};
-        SDLResultCheck(SDL_RenderFillRect(m_Renderer, &rect));
+        SDLResultCheck(SDL_RenderFillRect(m_Renderer.get(), &rect));
     }
 
     [[nodiscard]] bool IsMouseHeld() const {
@@ -203,6 +216,36 @@ public:
         SDL_GetMouseState(&ret.first, &ret.second);
         return ret;
     }
+
+    template<class T>
+    using DialogChoices = std::vector<std::pair<T, std::string>>;
+
+    template<class T>
+    static T ChoiceDialog(DialogChoices<T> options, const std::string& title, const std::string& message) {
+        auto* buttons = new SDL_MessageBoxButtonData[options.size()];
+        for(Dimension i = 0; i < options.size(); ++i) {
+            buttons[i] = SDL_MessageBoxButtonData{ 0, (int) options[i].first, options[i].second.c_str() };
+        }
+
+        SDL_MessageBoxData data{ SDL_MESSAGEBOX_INFORMATION, nullptr, title.c_str(), message.c_str(), static_cast<int>(options.size()), buttons, nullptr };
+        T result;
+        SDLResultCheck(SDL_ShowMessageBox(&data, (int*) &result));
+
+        delete[] buttons;
+        return result;
+    }
+
+    static bool ChoiceDialog(const std::string& title, const std::string& message) {
+        SDL_MessageBoxButtonData buttons[] = {
+            {0, 0, "No"},
+            {0, 1, "Yes"}
+        };
+        SDL_MessageBoxData data{ SDL_MESSAGEBOX_INFORMATION, nullptr, title.c_str(), message.c_str(), sizeof(buttons) / sizeof(buttons[0]), buttons, nullptr };
+        int result;
+        SDLResultCheck(SDL_ShowMessageBox(&data, (int*) &result));
+        return result;
+    }
+
 };
 
 class Texture {
@@ -223,7 +266,7 @@ public:
     Texture(const std::string& path, Context& ctx) : m_Dummy(false) {
         SDL_Surface* surface = IMG_Load(path.c_str());
         SDLNullCheck(surface);
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(ctx.m_Renderer, surface);
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(ctx.m_Renderer.get(), surface);
         SDLNullCheck(texture);
         m_Texture.reset(texture);
 
@@ -237,7 +280,7 @@ public:
         if(!m_Dummy) {
             SDL_Rect src {0, 0, m_Width, m_Height};
             SDL_Rect dest {x, y, width, height};
-            SDLResultCheck(SDL_RenderCopy(ctx.m_Renderer, m_Texture.get(), &src, &dest));
+            SDLResultCheck(SDL_RenderCopy(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest));
         }
     }
 
@@ -245,7 +288,7 @@ public:
         if(!m_Dummy) {
             SDL_Rect src {0, 0, m_Width, m_Height};
             SDL_Rect dest {x, y, width, height};
-            SDLResultCheck(SDL_RenderCopyEx(ctx.m_Renderer, m_Texture.get(), &src, &dest, rotation, nullptr, SDL_FLIP_NONE));
+            SDLResultCheck(SDL_RenderCopyEx(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest, rotation, nullptr, SDL_FLIP_NONE));
         }
     }
 };
@@ -267,8 +310,8 @@ public:
         auto added = emplaced.second;
 
         if(added) {
-            std::string fullpath = m_ResourceDirectory + "/" + path;
-            m_Resources[m_ResourcesLast] = std::move(T(fullpath, ctx));
+            std::string full_path = m_ResourceDirectory + "/" + path;
+            m_Resources[m_ResourcesLast] = std::move(T(full_path, ctx));
             it->second = m_ResourcesLast++;
         }
 
@@ -461,7 +504,7 @@ static int UnsignedRandRange(int range) {
 
 class Player {
 public:
-    static constexpr float MaxHealth = 10000.0f;
+    static constexpr float MaxHealth = 100.0f;
 
 private:
     static constexpr Dimension IndicatorScale = Board::SquareScale / 2;
@@ -633,56 +676,49 @@ int main() {
     Board board(loader, ctx);
     WeaponTextures weapon_textures(loader, ctx);
 
-    SDL_MessageBoxButtonData weapon_buttons[] {
-        {0, (int) Weapon::None, "None"},
-        {0, (int) Weapon::AimTest, "Aim Test"},
-        {0, (int) Weapon::Pistol, "Pistol"},
-        {0, (int) Weapon::Shotgun, "Shotgun"},
-        {0, (int) Weapon::ScienceGun, "Science Gun"},
-        {0, (int) Weapon::Rifle, "Rifle"},
-        {0, (int) Weapon::RocketLauncher, "Rocket Launcher"}
+    Context::DialogChoices<Weapon> weapons {
+        {Weapon::None, "None"},
+        {Weapon::AimTest, "Aim Test"},
+        {Weapon::Pistol, "Pistol"},
+        {Weapon::Shotgun, "Shotgun"},
+        {Weapon::ScienceGun, "Science Gun"},
+        {Weapon::Rifle, "Rifle"},
+        {Weapon::RocketLauncher, "Rocket Launcher"}
     };
 
-    Piece white_piece = Piece::None;
-    SDL_MessageBoxButtonData white_piece_buttons[] {
-        {0, (int) Piece::WhitePawn, "Pawn"},
-        {0, (int) Piece::WhiteRook, "Rook"},
-        {0, (int) Piece::WhiteBishop, "Bishop"},
-        {0, (int) Piece::WhiteKnight, "Knight"},
-        {0, (int) Piece::WhiteKing, "King"},
-        {0, (int) Piece::WhiteQueen, "Queen"}
-    };
-    SDL_MessageBoxData white_piece_data{SDL_MESSAGEBOX_INFORMATION, nullptr, "White Piece", "White, please choose your piece!", sizeof(white_piece_buttons) / sizeof(white_piece_buttons[0]), white_piece_buttons, nullptr};
-    SDLResultCheck(SDL_ShowMessageBox(&white_piece_data, (int*) &white_piece));
+    auto white_piece = Context::ChoiceDialog<Piece>(
+    {
+            { Piece::WhitePawn, "Pawn" },
+            { Piece::WhiteRook, "Rook"},
+            { Piece::WhiteBishop, "Bishop"},
+            { Piece::WhiteKnight, "Knight"},
+            { Piece::WhiteKing, "King"},
+            { Piece::WhiteQueen, "Queen"}
+        },
+        "White Piece", "White, please choose your piece!"
+    );
 
-    Weapon white_weapon = Weapon::None;
-    SDL_MessageBoxData white_weapon_data{SDL_MESSAGEBOX_INFORMATION, nullptr, "White Weapon", "White, please choose your weapon!", sizeof(weapon_buttons) / sizeof(weapon_buttons[0]), weapon_buttons, nullptr};
-    SDLResultCheck(SDL_ShowMessageBox(&white_weapon_data, (int*) &white_weapon));
-
+    auto white_weapon = Context::ChoiceDialog<Weapon>(weapons, "White Weapon", "White, please choose your weapon!");
     Player white(white_piece, white_weapon);
+    white.m_AI = Context::ChoiceDialog("White AI", "Should White be AI-controlled?");
     white.Move(board, 7, 7);
 
-    Piece black_piece = Piece::None;
-    SDL_MessageBoxButtonData black_piece_buttons[] {
-        {0, (int) Piece::BlackPawn, "Pawn"},
-        {0, (int) Piece::BlackRook, "Rook"},
-        {0, (int) Piece::BlackBishop, "Bishop"},
-        {0, (int) Piece::BlackKnight, "Knight"},
-        {0, (int) Piece::BlackKing, "King"},
-        {0, (int) Piece::BlackQueen, "Queen"}
-    };
-    SDL_MessageBoxData black_piece_data{SDL_MESSAGEBOX_INFORMATION, nullptr, "Black Piece", "Black, please choose your piece!", sizeof(black_piece_buttons) / sizeof(black_piece_buttons[0]), black_piece_buttons, nullptr};
-    SDLResultCheck(SDL_ShowMessageBox(&black_piece_data, (int*) &black_piece));
+    auto black_piece = Context::ChoiceDialog<Piece>(
+    {
+            { Piece::BlackPawn, "Pawn" },
+            { Piece::BlackRook, "Rook"},
+            { Piece::BlackBishop, "Bishop"},
+            { Piece::BlackKnight, "Knight"},
+            { Piece::BlackKing, "King"},
+            { Piece::BlackQueen, "Queen"}
+        },
+        "Black Piece", "Black, please choose your piece!"
+    );
 
-    Weapon black_weapon = Weapon::None;
-    SDL_MessageBoxData black_weapon_data{SDL_MESSAGEBOX_INFORMATION, nullptr, "Black Weapon", "Black, please choose your weapon!", sizeof(weapon_buttons) / sizeof(weapon_buttons[0]), weapon_buttons, nullptr};
-    SDLResultCheck(SDL_ShowMessageBox(&black_weapon_data, (int*) &black_weapon));
-
+    auto black_weapon = Context::ChoiceDialog<Weapon>(weapons, "Black Weapon", "Black, please choose your weapon!");
     Player black(black_piece, black_weapon);
+    black.m_AI = Context::ChoiceDialog("Black AI", "Should Black be AI-controlled?");
     black.Move(board, 0, 0);
-
-    black.m_AI = true;
-    white.m_AI = true;
 
     bool white_turn = true;
 
