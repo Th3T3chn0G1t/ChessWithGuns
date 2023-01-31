@@ -23,18 +23,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     link_libraries(${SDL2_IMAGE_LIBRARIES})
 #
 
-# spdlog
-    find_package(spdlog REQUIRED)
-    include_directories(${SPDLOG_INCLUDE_DIRS})
-    link_libraries(${SPDLOG_LIBRARIES})
-#
-
 # csv2
     include_directories(Vendor/csv2/include)
 #
 
 # CWG
-    link_libraries(spdlog SDL2 SDL2_image)
+    link_libraries(SDL2 SDL2_image)
 
     file(GLOB CWG Source/*.cpp Source/Include/*.hpp)
 

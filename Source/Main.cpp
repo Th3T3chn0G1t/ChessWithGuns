@@ -5,23 +5,22 @@
 #include <utility>
 #include <functional>
 #include <vector>
-#include <cstdint>
+#include <random>
 #include <cmath>
-#include <cstdlib>
-#include <iostream>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-#include <spdlog/spdlog.h>
-
 #include <csv2/writer.hpp>
+
+static std::random_device RNG;
 
 enum class Color {
     Black,
     White,
     Red,
-    Green
+    Green,
+    Gray
 };
 
 static void SDLResultCheck(int result) {
@@ -38,29 +37,26 @@ static SDL_Color ColorToSDL(Color color) {
         case Color::White: return {255, 255, 255, 255};
         case Color::Red: return {255, 0, 0, 255};
         case Color::Green: return {0, 255, 0, 255};
+        case Color::Gray: return {127, 127, 127};
     }
 }
 
 template<class T>
 class SDLHandle {
 public:
-    T* m_UnderlyingHandle{0};
+    T* m_UnderlyingHandle{nullptr};
 
 public:
     SDLHandle() = default;
-    SDLHandle(const std::nullptr_t) {};
     SDLHandle(T* handle) : m_UnderlyingHandle(handle) {}
 
     operator T*() const { return m_UnderlyingHandle; }
-
-    operator bool() const { return m_UnderlyingHandle != nullptr; }
-    bool operator!=(const std::nullptr_t) const { return m_UnderlyingHandle != 0; }
 };
 
 template<class T, void (*func)(T*)>
 class SDLDestructor {
 public:
-    using pointer = SDLHandle<T>;
+    using pointer  = SDLHandle<T>;
 
 public:
     void operator()(SDLHandle<T> handle) const {
@@ -127,6 +123,9 @@ static std::vector<PieceMove> EnumeratePieceMoves(Piece piece) {
 class Texture;
 
 class Context {
+public:
+    static constexpr Dimension Width = 640;
+    static constexpr Dimension Height = 448;
 private:
     SDL_Window* m_Window;
     SDL_Renderer* m_Renderer;
@@ -144,7 +143,7 @@ public:
         result = IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF);
         if(result < 0) throw std::runtime_error("Could not init SDL2_image");
 
-        SDLNullCheck(m_Window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN));
+        SDLNullCheck(m_Window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN));
         SDLNullCheck(m_Renderer = SDL_CreateRenderer(m_Window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC));
     }
 
@@ -189,17 +188,7 @@ public:
         SDLResultCheck(SDL_RenderFillRect(m_Renderer, &rect));
     }
 
-    bool IsKeyHeld(SDL_KeyCode keycode) {
-        return m_KeyStates[keycode];
-    }
-
-    bool WasKeyPressed(SDL_KeyCode keycode) {
-        bool pressed = IsKeyHeld(keycode);
-        m_KeyStates[keycode] = false;
-        return pressed;
-    }
-
-    bool IsMouseHeld() {
+    [[nodiscard]] bool IsMouseHeld() const {
         return m_MouseHeld;
     }
 
@@ -209,7 +198,7 @@ public:
         return pressed;
     }
 
-    std::pair<Dimension, Dimension> GetMousePosition() {
+    [[nodiscard]] static std::pair<Dimension, Dimension> GetMousePosition() {
         std::pair<Dimension, Dimension> ret;
         SDL_GetMouseState(&ret.first, &ret.second);
         return ret;
@@ -218,7 +207,7 @@ public:
 
 class Texture {
 private:
-    static void Deleter(SDL_Texture* texture) { spdlog::debug("Destroying texture @{}", (void*) texture); SDL_DestroyTexture(texture); };
+    static void Deleter(SDL_Texture* texture) { SDL_DestroyTexture(texture); };
     using Handle = std::unique_ptr<SDLHandle<SDL_Texture>, SDLDestructor<SDL_Texture, Deleter>>;
 
 private:
@@ -279,7 +268,6 @@ public:
 
         if(added) {
             std::string fullpath = m_ResourceDirectory + "/" + path;
-            spdlog::debug("Loaded resource from path '{}'", fullpath);
             m_Resources[m_ResourcesLast] = std::move(T(fullpath, ctx));
             it->second = m_ResourcesLast++;
         }
@@ -363,7 +351,7 @@ static float WeaponDamage(Weapon weapon) {
         case Weapon::AimTest: return 9.0f;
         case Weapon::Pistol: return 7.0f;
         case Weapon::Shotgun: return 4.0f;
-        case Weapon::ScienceGun: return 9.0f;
+        case Weapon::ScienceGun: return 6.0f;
         case Weapon::Rifle: return 9.0f;
         case Weapon::RocketLauncher: return 35.0f;
     }
@@ -400,7 +388,7 @@ static Dimension WeaponCount(Weapon weapon) {
         case Weapon::Pistol: return 1;
         case Weapon::Shotgun: return 7;
         case Weapon::ScienceGun: return 3;
-        case Weapon::Rifle: return 1;
+        case Weapon::Rifle: return 2;
         case Weapon::RocketLauncher: return 1;
     }
 }
@@ -442,8 +430,8 @@ public:
             m_X += dx;
             m_Y += dy;
 
-            Dimension x = static_cast<Dimension>(m_X);
-            Dimension y = static_cast<Dimension>(m_Y);
+            auto x = static_cast<Dimension>(m_X);
+            auto y = static_cast<Dimension>(m_Y);
 
             ctx.DrawRect(x, y, ProjectileScale, ProjectileScale, Color::Red);
 
@@ -464,16 +452,16 @@ public:
 };
 
 static float SignedRandRange(float range) {
-    return ((static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * (2 * range)) - range;
+    return ((static_cast<float>(RNG()) / static_cast<float>(std::minstd_rand::max())) * (2 * range)) - range;
 }
 
 static int UnsignedRandRange(int range) {
-    return static_cast<int>((static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * range);
+    return static_cast<int>((static_cast<float>(RNG()) / static_cast<float>(std::minstd_rand::max())) * static_cast<float>(range));
 }
 
 class Player {
 public:
-    static constexpr float MaxHealth = 100.0f;
+    static constexpr float MaxHealth = 10000.0f;
 
 private:
     static constexpr Dimension IndicatorScale = Board::SquareScale / 2;
@@ -511,13 +499,10 @@ public:
         if(!Board::IsInBounds(m_X, m_Y)) throw std::runtime_error("Attempt to move player out of bounds");
 
         board.Set(m_X, m_Y, m_Piece);
-
-        spdlog::debug("Moved from ({},{}) to ({},{})", m_X - dx, m_Y - dy, m_X, m_Y);
     }
 
     std::vector<std::pair<Dimension, Dimension>> EnumerateValidPositions(Board& board) {
         auto piece_moves = EnumeratePieceMoves(m_Piece);
-        spdlog::trace("Generated {} candidate moves", piece_moves.size());
 
         std::vector<std::pair<Dimension, Dimension>> positions{};
 
@@ -525,42 +510,27 @@ public:
             if(!move.m_Fill) {
                 if(board.Get(m_X + move.m_Dx, m_Y + move.m_Dy) == Piece::None) {
                     positions.emplace_back(move.m_Dx, move.m_Dy);
-                    spdlog::trace("Added non-filling move ({},{})", move.m_Dx, move.m_Dy);
                 }
             }
             else {
                 Dimension dx = 0;
                 Dimension dy = 0;
-                spdlog::trace("Adding filled moves in bounds +(0,0) -> +({},{})...", move.m_Dx, move.m_Dy);
                 while(true) {
 //                    dx += sign(move.m_Dx)
 
                     if(move.m_Dx > 0 && dx < move.m_Dx) ++dx;
                     else if(move.m_Dx < 0 && dx > move.m_Dx) --dx;
-                    else if(move.m_Dx) {
-                        spdlog::trace("Early finalize: {} == {}", dx, move.m_Dx);
-                        break;
-                    }
+                    else if(move.m_Dx) break;
 
                     if(move.m_Dy > 0 && dy < move.m_Dy) ++dy;
                     else if(move.m_Dy < 0 && dy > move.m_Dy) --dy;
-                    else if(move.m_Dy) {
-                        spdlog::trace("Early finalize: {} == {}", dy, move.m_Dy);
-                        break;
-                    }
+                    else if(move.m_Dy) break;
 
-                    if(!Board::IsInBounds(m_X + dx, m_Y + dy)) {
-                        spdlog::trace("Early finalize: ({},{}) (from delta +({},{})) out of bounds", m_X + dx, m_Y + dy, dx, dy);
-                        break;
-                    }
+                    if(!Board::IsInBounds(m_X + dx, m_Y + dy)) break;
 
-                    if(board.Get(m_X + dx, m_Y + dy) != Piece::None) {
-                        spdlog::trace("Early finalize: Piece blocking at ({},{})", m_X + dx, m_Y + dy);
-                        break;
-                    }
+                    if(board.Get(m_X + dx, m_Y + dy) != Piece::None) break;
 
                     positions.emplace_back(dx, dy);
-                    spdlog::trace("Added filled move ({},{})", dx, dy);
                 }
             }
         }
@@ -573,10 +543,10 @@ public:
         for(auto& position : positions) {
             if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) continue;
 
-            ctx.DrawRect((m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
-
             if(!m_AI) {
-                auto pos = ctx.GetMousePosition();
+                ctx.DrawRect((m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
+
+                auto pos = Context::GetMousePosition();
                 if(IsPointInRect(pos.first, pos.second, (m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
                     if(ctx.WasMousePressed()) {
                         Move(board, position.first, position.second);
@@ -588,9 +558,8 @@ public:
 
         if(m_AI && UnsignedRandRange(2)) {
             if(positions.empty()) return false;
-            int iposition = UnsignedRandRange((int) positions.size());
-            spdlog::debug("{}", iposition);
-            auto& position = positions[iposition];
+            int i_position = UnsignedRandRange((int) positions.size());
+            auto& position = positions[i_position];
             if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) return false;
             Move(board, position.first, position.second);
             return true;
@@ -600,7 +569,7 @@ public:
     }
 
     bool DoWeapon(Context& ctx, WeaponTextures& textures, int other_player_x, int other_player_y) {
-        auto pos = ctx.GetMousePosition();
+        auto pos = Context::GetMousePosition();
         float rot = atan(static_cast<float>(pos.second - m_Y * Board::SquareScale) / static_cast<float>(pos.first - m_X * Board::SquareScale));
         textures.m_Textures.at(m_Weapon).get().Draw(ctx, m_X * Board::SquareScale, m_Y * Board::SquareScale, Board::SquareScale, Board::SquareScale, (rot * 180.0f) / static_cast<float>(M_PI));
 
@@ -649,12 +618,9 @@ static void WriteStats(Player& black, Player& white) {
 
     std::vector<Row> rows {};
 
-//    rows.emplace_back(Row{"BlackHealthPerTurn", "BlackDamagePerTurn", "WhiteHealthPerTurn", "WhiteDamagePerTurn", "DistancePerTurn"});
-
     Dimension min_turns = black.m_Turns < white.m_Turns ? black.m_Turns : white.m_Turns;
-    spdlog::debug("{} {}", black.m_Turns, white.m_Turns);
     for(Dimension i = 0; i < min_turns; ++i) {
-        rows.emplace_back(Row{fmt::to_string(black.m_HealthPerTurn[i]), fmt::to_string(black.m_DamagePerTurn[i]), fmt::to_string(white.m_HealthPerTurn[i]), fmt::to_string(white.m_DamagePerTurn[i]), fmt::to_string(black.m_DistancePerTurn[i])});
+        rows.emplace_back(Row{std::to_string(black.m_HealthPerTurn[i]), std::to_string(black.m_DamagePerTurn[i]), std::to_string(white.m_HealthPerTurn[i]), std::to_string(white.m_DamagePerTurn[i]), std::to_string(black.m_DistancePerTurn[i])});
     }
 
     writer.write_rows(rows);
@@ -662,11 +628,6 @@ static void WriteStats(Player& black, Player& white) {
 }
 
 int main() {
-    srand(time(nullptr));
-
-    spdlog::set_level(spdlog::level::debug);
-    spdlog::info("Initializing CWG, hold onto your hats...");
-
     Context ctx{};
     TextureLoader loader("Resources");
     Board board(loader, ctx);
@@ -726,7 +687,7 @@ int main() {
     bool white_turn = true;
 
     while(ctx.Update()) {
-        ctx.Clear(Color::Red);
+        ctx.Clear(Color::Gray);
         board.Draw(ctx);
 
         if(white_turn) {
@@ -734,10 +695,9 @@ int main() {
                 white.m_Turns++;
                 white.m_HealthPerTurn.emplace_back(white.m_Health);
                 white.m_DamagePerTurn.emplace_back(white.m_Damage);
-                float dx = static_cast<float>(white.m_X - black.m_X);
-                float dy = static_cast<float>(white.m_Y - black.m_Y);
+                auto dx = static_cast<float>(white.m_X - black.m_X);
+                auto dy = static_cast<float>(white.m_Y - black.m_Y);
                 float dist = sqrtf(dx*dx + dx*dy);
-                spdlog::debug("Position delta +({},{}) -> dist: {}", dx, dy, dist);
                 white.m_DistancePerTurn.emplace_back(dist);
                 white_turn = false;
             }
@@ -747,10 +707,9 @@ int main() {
                 black.m_Turns++;
                 black.m_HealthPerTurn.emplace_back(black.m_Health);
                 black.m_DamagePerTurn.emplace_back(black.m_Damage);
-                float dx = static_cast<float>(white.m_X - black.m_X);
-                float dy = static_cast<float>(white.m_Y - black.m_Y);
+                auto dx = static_cast<float>(white.m_X - black.m_X);
+                auto dy = static_cast<float>(white.m_Y - black.m_Y);
                 float dist = sqrtf(dx*dx + dx*dy);
-                spdlog::debug("Position delta +({},{}) -> dist: {}", dx, dy, dist);
                 black.m_DistancePerTurn.emplace_back(dist);
                 white_turn = true;
             }
@@ -759,7 +718,6 @@ int main() {
         for(Projectile& projectile : white.m_Projectiles) {
             Piece hit = projectile.DoMove(ctx, board, white_piece);
             if(hit != Piece::None) {
-                spdlog::debug("White projectile hit - Black HP: {}", black.m_Health);
                 projectile.m_Shown = false;
                 float damage = WeaponDamage(white_weapon) + SignedRandRange(WeaponVariance(white_weapon));
                 white.m_Damage += damage;
@@ -773,7 +731,6 @@ int main() {
         for(Projectile& projectile : black.m_Projectiles) {
             Piece hit = projectile.DoMove(ctx, board, black_piece);
             if(hit != Piece::None) {
-                spdlog::debug("Black projectile hit - White HP: {}", white.m_Health);
                 projectile.m_Shown = false;
                 float damage = WeaponDamage(black_weapon) + SignedRandRange(WeaponVariance(black_weapon));
                 black.m_Damage += damage;
@@ -785,9 +742,8 @@ int main() {
             }
         }
 
-        ctx.DrawRect(Board::SquareScale * 8, 0, static_cast<float>(640 - Board::SquareScale * 8) * (black.m_Health / Player::MaxHealth), 32, Color::Black);
-        ctx.DrawRect(Board::SquareScale * 8, 480 - 32, static_cast<float>(640 - Board::SquareScale * 8) * (white.m_Health / Player::MaxHealth), 32, Color::White);
+        ctx.DrawRect(Board::SquareScale * 8, 0, static_cast<Dimension>(static_cast<float>(Context::Width - Board::SquareScale * 8) * (black.m_Health / Player::MaxHealth)), 32, Color::Black);
+        ctx.DrawRect(Board::SquareScale * 8, Context::Height - 32, static_cast<Dimension>(static_cast<float>(Context::Width - Board::SquareScale * 8) * (white.m_Health / Player::MaxHealth)), 32, Color::White);
+        ctx.DrawRect(Board::SquareScale * 8, 0, 2, Context::Height, Color::Red);
     }
-
-    spdlog::info("Tearing down...");
 }
