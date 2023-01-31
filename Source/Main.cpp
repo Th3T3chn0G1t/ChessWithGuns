@@ -192,7 +192,7 @@ public:
         return m_MouseHeld;
     }
 
-    bool WasMousePressed() {
+    [[nodiscard]] bool WasMousePressed() {
         bool pressed = IsMouseHeld();
         m_MouseHeld = false;
         return pressed;

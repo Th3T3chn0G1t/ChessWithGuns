@@ -3,3 +3,5 @@ build/
 game.csv
 __pycache__/
 .idea/
+venv/
+.DS_Store
