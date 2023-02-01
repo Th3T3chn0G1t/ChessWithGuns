@@ -4,7 +4,6 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <functional>
 #include <vector>
 #include <random>
 #include <cmath>
@@ -13,16 +12,30 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-#include <csv2/writer.hpp>
-
 static std::random_device RNG;
+
+using Dimension = int;
+static constexpr Dimension DimensionMax = INT_MAX;
+static constexpr Dimension DimensionMin = INT_MIN;
+
+template<typename T>
+class Span {
+public:
+    T* m_Data;
+    Dimension m_Size;
+
+public:
+    template<class S>
+    explicit Span(S& container) : m_Data(container.data()), m_Size(container.size()) {}
+};
 
 enum class Color {
     Black,
     White,
     Red,
     Green,
-    Gray
+    Gray,
+    Blue
 };
 
 static void SDLResultCheck(int result) {
@@ -40,6 +53,7 @@ static SDL_Color ColorToSDL(Color color) {
         case Color::Red: return {255, 0, 0, 255};
         case Color::Green: return {0, 255, 0, 255};
         case Color::Gray: return {127, 127, 127};
+        case Color::Blue: return {0, 0, 255};
     }
 }
 
@@ -66,10 +80,6 @@ public:
     }
 };
 
-using Dimension = int;
-static constexpr Dimension DimensionMax = INT_MAX;
-static constexpr Dimension DimensionMin = INT_MIN;
-
 static bool IsPointInRect(Dimension px, Dimension py, Dimension rx, Dimension ry, Dimension rw, Dimension rh) {
     return px >= rx && px <= (rx + rw) && py >= ry && py <= (ry + rh);
 }
@@ -89,7 +99,10 @@ enum class Piece {
     BlackBishop,
     BlackKnight,
     BlackKing,
-    BlackQueen
+    BlackQueen,
+
+    AmmoPickup,
+    HealthPickup
 };
 
 struct PieceMove {
@@ -100,24 +113,26 @@ struct PieceMove {
 
 static std::vector<PieceMove> EnumeratePieceMoves(Piece piece) {
     switch(piece) {
+        case Piece::AmmoPickup:
+        case Piece::HealthPickup:
         case Piece::None: return {};
 
         case Piece::WhitePawn: return {{0, -1}};
         case Piece::BlackPawn: return {{0, 1}};
 
-        case Piece::WhiteRook: [[fallthrough]];
+        case Piece::WhiteRook:
         case Piece::BlackRook: return {{0, DimensionMax, true}, {0, DimensionMin, true}, {DimensionMax, 0, true}, {DimensionMin, 0, true}};
 
-        case Piece::WhiteBishop: [[fallthrough]];
+        case Piece::WhiteBishop:
         case Piece::BlackBishop: return {{DimensionMax, DimensionMax, true}, {DimensionMax, DimensionMin, true}, {DimensionMin, DimensionMax, true}, {DimensionMin, DimensionMin, true}};
 
-        case Piece::WhiteKnight: [[fallthrough]];
+        case Piece::WhiteKnight:
         case Piece::BlackKnight: return {{1, 2}, {-1, 2}, {1, -2}, {-1, -2}, {2, 1}, {-2, 1}, {2, -1}, {-2, -1}};
 
-        case Piece::WhiteKing: [[fallthrough]];
+        case Piece::WhiteKing:
         case Piece::BlackKing: return {{0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
 
-        case Piece::WhiteQueen: [[fallthrough]];
+        case Piece::WhiteQueen:
         case Piece::BlackQueen: return {{0, DimensionMax, true}, {DimensionMax, DimensionMax, true}, {DimensionMax, 0, true}, {DimensionMax, DimensionMin, true}, {0, DimensionMin, true}, {DimensionMin, DimensionMin, true}, {DimensionMin, 0, true}, {DimensionMin, DimensionMax, true}};
     }
 }
@@ -155,9 +170,9 @@ struct TextureLoaderWrapper;
 
 class Board {
 public:
-    constexpr static Dimension SquareScale = 64;
-    constexpr static Dimension Width = 3;
-    constexpr static Dimension Height = 5;
+    constexpr static Dimension SquareScale = 40;
+    constexpr static Dimension Width = 9;
+    constexpr static Dimension Height = 9;
 
 private:
 
@@ -191,7 +206,7 @@ private:
     static void RendererDeleter(SDL_Renderer* renderer) { SDL_DestroyRenderer(renderer); };
     using RendererHandle = std::unique_ptr<SDLHandle<SDL_Renderer>, SDLDestructor<SDL_Renderer, RendererDeleter>>;
 
-    static constexpr std::string Title = "Chess with Guns";
+    static constexpr const char Title[] = "Chess with Guns";
 public:
     static constexpr Dimension SidebarWidth = 192;
     static constexpr Dimension Width = Board::Width * Board::SquareScale + SidebarWidth;
@@ -213,7 +228,7 @@ public:
         result = IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF);
         if(result < 0) throw std::runtime_error("Could not init SDL2_image");
 
-        SDL_Window* window = SDL_CreateWindow(Title.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+        SDL_Window* window = SDL_CreateWindow(Title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
         SDLNullCheck(window);
         m_Window.reset(window);
 
@@ -306,6 +321,9 @@ public:
         return result;
     }
 
+    static void Dialog(const std::string& title, const std::string& message) {
+        SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, title.c_str(), message.c_str(), nullptr));
+    }
 };
 
 class Texture {
@@ -362,8 +380,7 @@ using TextureLoader = ResourceLoader<Texture, 1024>;
 struct TextureLoaderWrapper {
     TextureLoader m_Loader;
 
-    TextureLoaderWrapper(TextureLoader loader) : m_Loader(std::move(loader)) {}
-    operator TextureLoader&() { return m_Loader; }
+    explicit TextureLoaderWrapper(TextureLoader loader) : m_Loader(std::move(loader)) {}
 
     Texture& Get(const std::string& path, Context& ctx) { return m_Loader.Get(path, ctx); }
 };
@@ -384,6 +401,9 @@ Board::Board(TextureLoaderWrapper& loader, Context& ctx) : m_Board{}, m_PieceTex
     m_PieceTextures.insert({Piece::BlackKnight, loader.Get("BlackKnight.png", ctx)});
     m_PieceTextures.insert({Piece::BlackKing, loader.Get("BlackKing.png", ctx)});
     m_PieceTextures.insert({Piece::BlackQueen, loader.Get("BlackQueen.png", ctx)});
+
+    m_PieceTextures.insert({Piece::AmmoPickup, loader.Get("AmmoPickup.png", ctx)});
+    m_PieceTextures.insert({Piece::HealthPickup, loader.Get("HealthPickup.png", ctx)});
 }
 
 
@@ -411,12 +431,12 @@ enum class Weapon {
 static float WeaponDamage(Weapon weapon) {
     switch(weapon) {
         case Weapon::None: return 0.0f;
-        case Weapon::AimTest: return 9.0f;
-        case Weapon::Pistol: return 7.0f;
-        case Weapon::Shotgun: return 4.0f;
-        case Weapon::ScienceGun: return 6.0f;
-        case Weapon::Rifle: return 9.0f;
-        case Weapon::RocketLauncher: return 35.0f;
+        case Weapon::AimTest: return 11.0f;
+        case Weapon::Pistol: return 9.0f;
+        case Weapon::Shotgun: return 8.0f;
+        case Weapon::ScienceGun: return 5.0f;
+        case Weapon::Rifle: return 11.0f;
+        case Weapon::RocketLauncher: return 37.0f;
     }
 }
 
@@ -452,6 +472,18 @@ static Dimension WeaponCount(Weapon weapon) {
         case Weapon::Shotgun: return 7;
         case Weapon::ScienceGun: return 3;
         case Weapon::Rifle: return 2;
+        case Weapon::RocketLauncher: return 1;
+    }
+}
+
+static Dimension WeaponAmmo(Weapon weapon) {
+    switch(weapon) {
+        case Weapon::None: return 0;
+        case Weapon::AimTest: return 6;
+        case Weapon::Pistol: return 20;
+        case Weapon::Shotgun: return 15;
+        case Weapon::ScienceGun: return 6;
+        case Weapon::Rifle: return 10;
         case Weapon::RocketLauncher: return 1;
     }
 }
@@ -504,7 +536,7 @@ public:
             }
 
             Piece piece = board.Get(x / Board::SquareScale, y / Board::SquareScale);
-            if(piece != Piece::None && piece != ignore) {
+            if(piece != Piece::None && piece != ignore && piece != Piece::AmmoPickup && piece != Piece::HealthPickup) {
                 m_Shown = false;
                 return piece;
             }
@@ -515,12 +547,44 @@ public:
 };
 
 static float SignedRandRange(float range) {
-    return ((static_cast<float>(RNG()) / static_cast<float>(std::minstd_rand::max())) * (2 * range)) - range;
+    return ((static_cast<float>(RNG()) / static_cast<float>(std::random_device::max())) * (2 * range)) - range;
 }
 
-static int UnsignedRandRange(int range) {
-    return static_cast<int>((static_cast<float>(RNG()) / static_cast<float>(std::minstd_rand::max())) * static_cast<float>(range));
+static Dimension UnsignedRandRange(Dimension range) {
+    float mul = static_cast<float>(RNG()) / static_cast<float>(std::random_device::max());
+    return static_cast<Dimension>(mul * static_cast<float>(range));
 }
+
+class Pickup {
+public:
+    Dimension m_X;
+    Dimension m_Y;
+
+    explicit Pickup(Board& board) {
+        do {
+            m_X = UnsignedRandRange(7);
+            m_Y = UnsignedRandRange(7);
+        } while(board.Get(m_X, m_Y) != Piece::None);
+
+        if(UnsignedRandRange(1)) board.Set(m_X, m_Y, Piece::AmmoPickup);
+        else board.Set(m_X, m_Y, Piece::HealthPickup);
+    }
+
+    void Place(Board& board) {
+        Dimension x = m_X;
+        Dimension y = m_Y;
+
+        do {
+            m_X = UnsignedRandRange(7);
+            m_Y = UnsignedRandRange(7);
+        } while(board.Get(m_X, m_Y) != Piece::None);
+
+        if(UnsignedRandRange(2)) board.Set(m_X, m_Y, Piece::AmmoPickup);
+        else board.Set(m_X, m_Y, Piece::HealthPickup);
+
+        board.Set(x, y, Piece::None);
+    }
+};
 
 class Player {
 public:
@@ -531,28 +595,30 @@ private:
     static constexpr float ProjectileSpeed = 10.0f;
     static constexpr Dimension MaxProjectiles = 10;
 
+public:
+    std::string m_Name;
     Piece m_Piece;
     Weapon m_Weapon;
+    Color m_Color;
 
-public:
+    Dimension m_Ammo;
+
+    bool m_Dead{};
+
     Dimension m_X;
     Dimension m_Y;
 
     float m_Health{MaxHealth};
-    float m_Damage{};
 
-    Dimension m_Turns{};
-    std::vector<float> m_HealthPerTurn;
-    std::vector<float> m_DamagePerTurn;
-    std::vector<float> m_DistancePerTurn;
-
-
-public:
     bool m_AI{};
     std::array<Projectile, MaxProjectiles> m_Projectiles{};
 
 public:
-    Player(Piece piece, Weapon weapon) : m_X(0), m_Y(0), m_Piece(piece), m_Weapon(weapon) {};
+    Player(Piece piece, Weapon weapon, bool ai, Dimension x, Dimension y, Board& board, std::string  name, Color color) : m_X(0), m_Y(0), m_Piece(piece), m_Weapon(weapon), m_AI(ai), m_Name(std::move(name)), m_Color(color) {
+        board.Set(m_X, m_Y, Piece::None);
+        Move(board, x, y);
+        m_Ammo = WeaponAmmo(weapon);
+    };
 
     void Move(Board& board, Dimension dx, Dimension dy) {
         board.Set(m_X, m_Y, Piece::None);
@@ -564,14 +630,15 @@ public:
         board.Set(m_X, m_Y, m_Piece);
     }
 
-    std::vector<std::pair<Dimension, Dimension>> EnumerateValidPositions(Board& board) {
+    std::vector<std::pair<Dimension, Dimension>> EnumerateValidPositions(Board& board) const {
         auto piece_moves = EnumeratePieceMoves(m_Piece);
 
         std::vector<std::pair<Dimension, Dimension>> positions{};
 
         for(PieceMove& move : piece_moves) {
             if(!move.m_Fill) {
-                if(board.Get(m_X + move.m_Dx, m_Y + move.m_Dy) == Piece::None) {
+                Piece at = board.Get(m_X + move.m_Dx, m_Y + move.m_Dy);
+                if(at == Piece::None || at == Piece::AmmoPickup || at == Piece::HealthPickup) {
                     positions.emplace_back(move.m_Dx, move.m_Dy);
                 }
             }
@@ -579,8 +646,6 @@ public:
                 Dimension dx = 0;
                 Dimension dy = 0;
                 while(true) {
-//                    dx += sign(move.m_Dx)
-
                     if(move.m_Dx > 0 && dx < move.m_Dx) ++dx;
                     else if(move.m_Dx < 0 && dx > move.m_Dx) --dx;
                     else if(move.m_Dx) break;
@@ -591,7 +656,12 @@ public:
 
                     if(!Board::IsInBounds(m_X + dx, m_Y + dy)) break;
 
-                    if(board.Get(m_X + dx, m_Y + dy) != Piece::None) break;
+                    Piece at = board.Get(m_X + dx, m_Y + dy);
+                    if(at == Piece::AmmoPickup || at == Piece::HealthPickup) {
+                        positions.emplace_back(dx, dy);
+                        break;
+                    }
+                    else if(at != Piece::None) break;
 
                     positions.emplace_back(dx, dy);
                 }
@@ -601,17 +671,45 @@ public:
         return positions;
     }
 
-    bool DoMoves(Context& ctx, Board& board) {
-        auto positions = EnumerateValidPositions(board);
-        for(auto& position : positions) {
-            if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) continue;
+    void PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pickups) {
+        Piece at = board.Get(x, y);
+        if(at == Piece::AmmoPickup) {
+            m_Ammo += 5;
+            if(m_Ammo > WeaponAmmo(m_Weapon)) m_Ammo = WeaponAmmo(m_Weapon);
+        }
+        else if(at == Piece::HealthPickup) {
+            m_Health += 7;
+            if(m_Health > MaxHealth) m_Health = MaxHealth;
+        }
 
-            if(!m_AI) {
-                ctx.DrawRect((m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
+        if(at == Piece::AmmoPickup || at == Piece::HealthPickup) {
+            for(size_t i = 0; i < pickups.m_Size; ++i) {
+                if(pickups.m_Data[i].m_X == x && pickups.m_Data[i].m_Y == y) {
+                    pickups.m_Data[i].Place(board);
+                    return;
+                }
+            }
+            Context::Dialog("Error", "Invalid Pickup at " + std::to_string(x) + " " + std::to_string(y));
+        }
+    }
+
+    bool DoMoves(Context& ctx, Board& board, Span<Pickup> pickups) {
+        auto positions = EnumerateValidPositions(board);
+        if(!m_AI) {
+            for(auto& position : positions) {
+                Dimension new_x = m_X + position.first;
+                Dimension new_y = m_Y + position.second;
+
+                if(!Board::IsInBounds(new_x, new_y)) continue;
+
+                ctx.DrawRect(new_x * Board::SquareScale, new_y * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
 
                 auto pos = Context::GetMousePosition();
-                if(IsPointInRect(pos.first, pos.second, (m_X + position.first) * Board::SquareScale, (m_Y + position.second) * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
+
+                if(IsPointInRect(pos.first, pos.second, new_x * Board::SquareScale, new_y * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
                     if(ctx.WasMousePressed()) {
+                        PickupCheck(board, new_x, new_y, pickups);
+
                         Move(board, position.first, position.second);
                         return true;
                     }
@@ -621,9 +719,24 @@ public:
 
         if(m_AI && UnsignedRandRange(2)) {
             if(positions.empty()) return false;
-            int i_position = UnsignedRandRange((int) positions.size());
-            auto& position = positions[i_position];
+
+            for(auto& position : positions) {
+                if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) continue;
+
+                Piece at = board.Get(m_X + position.first, m_Y + position.second);
+                if(at == Piece::AmmoPickup || at == Piece::HealthPickup) {
+                    PickupCheck(board, m_X + position.first, m_Y + position.second, pickups);
+
+                    Move(board, position.first, position.second);
+                    return true;
+                }
+            }
+
+            auto& position = positions[UnsignedRandRange((int) positions.size())];
             if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) return false;
+
+            PickupCheck(board, m_X + position.first, m_Y + position.second, pickups);
+
             Move(board, position.first, position.second);
             return true;
         }
@@ -631,13 +744,16 @@ public:
         return false;
     }
 
-    bool DoWeapon(Context& ctx, WeaponTextures& textures, int other_player_x, int other_player_y) {
+    bool DoWeapon(Context& ctx, WeaponTextures& textures, Span<Player> players) {
         auto pos = Context::GetMousePosition();
         float rot = atan(static_cast<float>(pos.second - m_Y * Board::SquareScale) / static_cast<float>(pos.first - m_X * Board::SquareScale));
         textures.m_Textures.at(m_Weapon).get().Draw(ctx, m_X * Board::SquareScale, m_Y * Board::SquareScale, Board::SquareScale, Board::SquareScale, (rot * 180.0f) / static_cast<float>(M_PI));
 
+        if(m_Ammo <= 0) return false;
+
         if(!m_AI) {
             if(ctx.WasMousePressed()) {
+                m_Ammo--;
                 rot += pos.first - m_X * Board::SquareScale < 0 ? M_PI : 0;
                 for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
                     for(Projectile& projectile : m_Projectiles) {
@@ -651,8 +767,11 @@ public:
             }
         }
         else if(UnsignedRandRange(2)) {
-            rot = atan(static_cast<float>(other_player_y - m_Y) / static_cast<float>(other_player_x - m_X));
-            rot += other_player_x - m_X < 0 ? M_PI : 0;
+            m_Ammo--;
+            Player& other = players.m_Data[UnsignedRandRange(static_cast<Dimension>(players.m_Size))];
+            Dimension dx = other.m_X - m_X;
+            rot = atan(static_cast<float>(other.m_Y - m_Y) / static_cast<float>(dx));
+            rot += dx < 0 ? M_PI : 0;
             for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
                 for(Projectile& projectile : m_Projectiles) {
                     if(!projectile.m_Shown) {
@@ -673,28 +792,11 @@ public:
     }
 };
 
-using Row = std::array<std::string, 5>;
-
-static void WriteStats(Player& black, Player& white) {
-    std::ofstream stream("game.csv");
-    csv2::Writer<csv2::delimiter<','>> writer(stream);
-
-    std::vector<Row> rows {};
-
-    Dimension min_turns = black.m_Turns < white.m_Turns ? black.m_Turns : white.m_Turns;
-    for(Dimension i = 0; i < min_turns; ++i) {
-        rows.emplace_back(Row{std::to_string(black.m_HealthPerTurn[i]), std::to_string(black.m_DamagePerTurn[i]), std::to_string(white.m_HealthPerTurn[i]), std::to_string(white.m_DamagePerTurn[i]), std::to_string(black.m_DistancePerTurn[i])});
-    }
-
-    writer.write_rows(rows);
-    stream.close();
-}
-
 int main() {
     Context ctx{};
     TextureLoaderWrapper loader(TextureLoader("Resources"));
     Board board(loader, ctx);
-    WeaponTextures weapon_textures(loader, ctx);
+    WeaponTextures weapon_textures(loader.m_Loader, ctx);
 
     Context::DialogChoices<Weapon> weapons {
         {Weapon::None, "None"},
@@ -706,100 +808,99 @@ int main() {
         {Weapon::RocketLauncher, "Rocket Launcher"}
     };
 
-    auto white_piece = Context::ChoiceDialog<Piece>(
-      {
-            { Piece::WhitePawn, "Pawn" },
-            { Piece::WhiteRook, "Rook"},
-            { Piece::WhiteBishop, "Bishop"},
-            { Piece::WhiteKnight, "Knight"},
-            { Piece::WhiteKing, "King"},
-            { Piece::WhiteQueen, "Queen"}
+    std::array<Player, 2> players {
+        Player{
+            Context::ChoiceDialog<Piece>({
+                { Piece::WhitePawn, "Pawn" },
+                { Piece::WhiteRook, "Rook"},
+                { Piece::WhiteBishop, "Bishop"},
+                { Piece::WhiteKnight, "Knight"},
+                { Piece::WhiteKing, "King"},
+                { Piece::WhiteQueen, "Queen"}
+            }, "White Piece", "White, please choose your piece!"),
+            Context::ChoiceDialog<Weapon>(weapons, "White Weapon", "White, please choose your weapon!"),
+            Context::ChoiceDialog("White AI", "Should White be AI-controlled?"),
+            Board::Width - 1, Board::Height - 1, board,
+            "White", Color::White
         },
-        "White Piece", "White, please choose your piece!"
-    );
+        Player{
+            Context::ChoiceDialog<Piece>({
+                { Piece::BlackPawn, "Pawn" },
+                { Piece::BlackRook, "Rook"},
+                { Piece::BlackBishop, "Bishop"},
+                { Piece::BlackKnight, "Knight"},
+                { Piece::BlackKing, "King"},
+                { Piece::BlackQueen, "Queen"}
+            }, "Black Piece", "Black, please choose your piece!"),
+            Context::ChoiceDialog<Weapon>(weapons, "Black Weapon", "Black, please choose your weapon!"),
+            Context::ChoiceDialog("Black AI", "Should Black be AI-controlled?"),
+            0, 0, board,
+            "Black", Color::Black
+        }
+    };
 
-    auto white_weapon = Context::ChoiceDialog<Weapon>(weapons, "White Weapon", "White, please choose your weapon!");
-    Player white(white_piece, white_weapon);
-    white.m_AI = Context::ChoiceDialog("White AI", "Should White be AI-controlled?");
-    white.Move(board, Board::Width - 1, Board::Height - 1);
+    std::array<Pickup, 2> pickups{
+        Pickup{board},
+        Pickup{board}
+    };
 
-    auto black_piece = Context::ChoiceDialog<Piece>(
-        {
-            { Piece::BlackPawn, "Pawn" },
-            { Piece::BlackRook, "Rook"},
-            { Piece::BlackBishop, "Bishop"},
-            { Piece::BlackKnight, "Knight"},
-            { Piece::BlackKing, "King"},
-            { Piece::BlackQueen, "Queen"}
-        },
-        "Black Piece", "Black, please choose your piece!"
-    );
-
-    auto black_weapon = Context::ChoiceDialog<Weapon>(weapons, "Black Weapon", "Black, please choose your weapon!");
-    Player black(black_piece, black_weapon);
-    black.m_AI = Context::ChoiceDialog("Black AI", "Should Black be AI-controlled?");
-    black.Move(board, 0, 0);
-
-    bool white_turn = true;
+    Dimension turn = 0;
+    Dimension dead = 0;
 
     while(ctx.Update()) {
         ctx.Clear(Color::Gray);
         board.Draw(ctx);
 
-        if(white_turn) {
-            if(white.DoMoves(ctx, board) || white.DoWeapon(ctx, weapon_textures, black.m_X, black.m_Y)) {
-                white.m_Turns++;
-                white.m_HealthPerTurn.emplace_back(white.m_Health);
-                white.m_DamagePerTurn.emplace_back(white.m_Damage);
-                auto dx = static_cast<float>(white.m_X - black.m_X);
-                auto dy = static_cast<float>(white.m_Y - black.m_Y);
-                float dist = sqrtf(dx*dx + dx*dy);
-                white.m_DistancePerTurn.emplace_back(dist);
-                white_turn = false;
-            }
-        }
-        else {
-            if(black.DoMoves(ctx, board) || black.DoWeapon(ctx, weapon_textures, white.m_X, white.m_Y)) {
-                black.m_Turns++;
-                black.m_HealthPerTurn.emplace_back(black.m_Health);
-                black.m_DamagePerTurn.emplace_back(black.m_Damage);
-                auto dx = static_cast<float>(white.m_X - black.m_X);
-                auto dy = static_cast<float>(white.m_Y - black.m_Y);
-                float dist = sqrtf(dx*dx + dx*dy);
-                black.m_DistancePerTurn.emplace_back(dist);
-                white_turn = true;
-            }
+        auto& player = players[turn];
+        if(player.m_Dead) {
+            if(++turn >= players.size()) turn = 0;
+            goto ui;
         }
 
-        for(Projectile& projectile : white.m_Projectiles) {
-            Piece hit = projectile.DoMove(ctx, board, white_piece);
-            if(hit != Piece::None) {
-                projectile.m_Shown = false;
-                float damage = WeaponDamage(white_weapon) + SignedRandRange(WeaponVariance(white_weapon));
-                white.m_Damage += damage;
-                if(black.Hurt(damage)) {
-                    SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "White won!", nullptr));
-                    WriteStats(black, white);
-                    return 0;
-                }
-            }
+        if(player.DoMoves(ctx, board, Span<Pickup>(pickups)) || player.DoWeapon(ctx, weapon_textures, Span<Player>(players))) {
+            if(++turn >= players.size()) turn = 0;
         }
-        for(Projectile& projectile : black.m_Projectiles) {
-            Piece hit = projectile.DoMove(ctx, board, black_piece);
-            if(hit != Piece::None) {
-                projectile.m_Shown = false;
-                float damage = WeaponDamage(black_weapon) + SignedRandRange(WeaponVariance(black_weapon));
-                black.m_Damage += damage;
-                if(white.Hurt(damage)) {
-                    SDLResultCheck(SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Game Over", "Black won!", nullptr));
-                    WriteStats(black, white);
-                    return 0;
+
+        for(auto& fired : players) {
+            for(Projectile& projectile : fired.m_Projectiles) {
+                Piece hit = projectile.DoMove(ctx, board, fired.m_Piece);
+                if(hit != Piece::None) {
+                    projectile.m_Shown = false;
+                    float damage = WeaponDamage(fired.m_Weapon) + SignedRandRange(WeaponVariance(fired.m_Weapon));
+                    for(auto& other : players) {
+                        if(hit == other.m_Piece) {
+                            bool death = other.Hurt(damage);
+                            if(death) {
+                                Context::Dialog("Death", other.m_Name + " died");
+                                other.m_Dead = true;
+                                board.Set(other.m_X, other.m_Y, Piece::None);
+                                dead++;
+                                if(dead >= players.size() - 1) {
+                                    Context::Dialog("Game Over", fired.m_Name + " won!");
+                                    return 0;
+                                }
+                            }
+                            goto ui;
+                        }
+                    }
+                    Context::Dialog("Error", "Invalid Hit");
+                    return 1;
                 }
             }
         }
 
-        ctx.DrawRect(Context::Width - Context::SidebarWidth, 0, static_cast<Dimension>(static_cast<float>(Context::Width - Context::SidebarWidth) * (black.m_Health / Player::MaxHealth)), 32, Color::Black);
-        ctx.DrawRect(Context::Width - Context::SidebarWidth, Context::Height - 32, static_cast<Dimension>(static_cast<float>(Context::Width - Context::SidebarWidth) * (white.m_Health / Player::MaxHealth)), 32, Color::White);
-        ctx.DrawRect(Context::Width - Context::SidebarWidth, 0, 2, Context::Height, Color::Red);
+        ui: {
+            for(Dimension i = 0; i < players.size(); ++i) {
+                if(players[i].m_Dead) continue;
+
+                float health_portion = static_cast<float>(players[i].m_Health) / static_cast<float>(Player::MaxHealth);
+                ctx.DrawRect(Context::Width - Context::SidebarWidth, i * 32, static_cast<Dimension>(static_cast<float>(Context::SidebarWidth) * health_portion), 32, players[i].m_Color);
+
+                for(Dimension j = 0; j < players[i].m_Ammo; ++j) {
+                    ctx.DrawRect(Context::Width - Context::SidebarWidth + 4 * j + 1, Context::Height - (i + 1) * 32 + 1, 2, 2, players[i].m_Color);
+                }
+            }
+            ctx.DrawRect(Context::Width - Context::SidebarWidth, 0, 2, Context::Height, Color::Red);
+        }
     }
 }
