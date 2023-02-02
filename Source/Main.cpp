@@ -12,8 +12,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-static std::random_device RNG;
-
 using Dimension = int;
 static constexpr Dimension DimensionMax = INT_MAX;
 static constexpr Dimension DimensionMin = INT_MIN;
@@ -171,8 +169,8 @@ struct TextureLoaderWrapper;
 class Board {
 public:
     constexpr static Dimension SquareScale = 40;
-    constexpr static Dimension Width = 9;
-    constexpr static Dimension Height = 9;
+    constexpr static Dimension Width = 8;
+    constexpr static Dimension Height = 8;
 
 private:
 
@@ -206,11 +204,15 @@ private:
     static void RendererDeleter(SDL_Renderer* renderer) { SDL_DestroyRenderer(renderer); };
     using RendererHandle = std::unique_ptr<SDLHandle<SDL_Renderer>, SDLDestructor<SDL_Renderer, RendererDeleter>>;
 
+    static std::random_device RNG;
+
     static constexpr const char Title[] = "Chess with Guns";
 public:
     static constexpr Dimension SidebarWidth = 192;
     static constexpr Dimension Width = Board::Width * Board::SquareScale + SidebarWidth;
     static constexpr Dimension Height = Board::Height * Board::SquareScale;
+
+    Dimension m_ShakeIntensity = 0;
 private:
     WindowHandle m_Window;
     RendererHandle m_Renderer;
@@ -241,7 +243,23 @@ public:
         SDL_Quit();
     }
 
+    static float SignedRandRange(float range) {
+        return ((static_cast<float>(RNG()) / static_cast<float>(std::random_device::max())) * (2 * range)) - range;
+    }
+
+    static Dimension SignedRandRange(Dimension range) {
+        return static_cast<Dimension>(((static_cast<float>(RNG()) / static_cast<float>(std::random_device::max())) * static_cast<float>(2 * range)) - static_cast<float>(range));
+    }
+
+    static Dimension UnsignedRandRange(Dimension range) {
+        float mul = static_cast<float>(RNG()) / static_cast<float>(std::random_device::max());
+        return static_cast<Dimension>(mul * static_cast<float>(range));
+    }
+
     bool Update() {
+        if(m_ShakeIntensity) m_ShakeIntensity -= UnsignedRandRange(2);
+        if(m_ShakeIntensity <= 0) m_ShakeIntensity = 0;
+
         SDL_RenderPresent(m_Renderer.get());
 
         SDL_Event event{};
@@ -272,7 +290,7 @@ public:
     void DrawRect(Dimension x, Dimension y, Dimension w, Dimension h, Color color) {
         SetColor(color);
 
-        SDL_Rect rect {x, y, w, h};
+        SDL_Rect rect {x + SignedRandRange(m_ShakeIntensity), y + SignedRandRange(m_ShakeIntensity), w, h};
         SDLResultCheck(SDL_RenderFillRect(m_Renderer.get(), &rect));
     }
 
@@ -326,6 +344,8 @@ public:
     }
 };
 
+std::random_device Context::RNG{};
+
 class Texture {
 private:
     static void Deleter(SDL_Texture* texture) { SDL_DestroyTexture(texture); };
@@ -359,7 +379,7 @@ public:
     void Draw(Context& ctx, Dimension x, Dimension y, Dimension width, Dimension height) {
         if(!m_Dummy) {
             SDL_Rect src {0, 0, m_Width, m_Height};
-            SDL_Rect dest {x, y, width, height};
+            SDL_Rect dest {x + Context::SignedRandRange(ctx.m_ShakeIntensity), y + Context::SignedRandRange(ctx.m_ShakeIntensity), width, height};
             SDLResultCheck(SDL_RenderCopy(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest));
         }
     }
@@ -367,7 +387,7 @@ public:
     void Draw(Context& ctx, Dimension x, Dimension y, Dimension width, Dimension height, float rotation) {
         if(!m_Dummy) {
             SDL_Rect src {0, 0, m_Width, m_Height};
-            SDL_Rect dest {x, y, width, height};
+            SDL_Rect dest {x + Context::SignedRandRange(ctx.m_ShakeIntensity), y + Context::SignedRandRange(ctx.m_ShakeIntensity), width, height};
             SDLResultCheck(SDL_RenderCopyEx(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest, rotation, nullptr, SDL_FLIP_NONE));
         }
     }
@@ -546,15 +566,6 @@ public:
     }
 };
 
-static float SignedRandRange(float range) {
-    return ((static_cast<float>(RNG()) / static_cast<float>(std::random_device::max())) * (2 * range)) - range;
-}
-
-static Dimension UnsignedRandRange(Dimension range) {
-    float mul = static_cast<float>(RNG()) / static_cast<float>(std::random_device::max());
-    return static_cast<Dimension>(mul * static_cast<float>(range));
-}
-
 class Pickup {
 public:
     Dimension m_X;
@@ -562,11 +573,11 @@ public:
 
     explicit Pickup(Board& board) {
         do {
-            m_X = UnsignedRandRange(7);
-            m_Y = UnsignedRandRange(7);
+            m_X = Context::UnsignedRandRange(Board::Width - 1);
+            m_Y = Context::UnsignedRandRange(Board::Height - 1);
         } while(board.Get(m_X, m_Y) != Piece::None);
 
-        if(UnsignedRandRange(1)) board.Set(m_X, m_Y, Piece::AmmoPickup);
+        if(Context::UnsignedRandRange(3)) board.Set(m_X, m_Y, Piece::AmmoPickup);
         else board.Set(m_X, m_Y, Piece::HealthPickup);
     }
 
@@ -575,11 +586,11 @@ public:
         Dimension y = m_Y;
 
         do {
-            m_X = UnsignedRandRange(7);
-            m_Y = UnsignedRandRange(7);
+            m_X = Context::UnsignedRandRange(Board::Width - 1);
+            m_Y = Context::UnsignedRandRange(Board::Height - 1);
         } while(board.Get(m_X, m_Y) != Piece::None);
 
-        if(UnsignedRandRange(2)) board.Set(m_X, m_Y, Piece::AmmoPickup);
+        if(Context::UnsignedRandRange(3)) board.Set(m_X, m_Y, Piece::AmmoPickup);
         else board.Set(m_X, m_Y, Piece::HealthPickup);
 
         board.Set(x, y, Piece::None);
@@ -717,7 +728,7 @@ public:
             }
         }
 
-        if(m_AI && UnsignedRandRange(2)) {
+        if(m_AI && Context::UnsignedRandRange(2)) {
             if(positions.empty()) return false;
 
             for(auto& position : positions) {
@@ -732,7 +743,7 @@ public:
                 }
             }
 
-            auto& position = positions[UnsignedRandRange((int) positions.size())];
+            auto& position = positions[Context::UnsignedRandRange((int) positions.size())];
             if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) return false;
 
             PickupCheck(board, m_X + position.first, m_Y + position.second, pickups);
@@ -758,7 +769,7 @@ public:
                 for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
                     for(Projectile& projectile : m_Projectiles) {
                         if(!projectile.m_Shown) {
-                            projectile = Projectile{static_cast<float>(m_X * Board::SquareScale), static_cast<float>(m_Y * Board::SquareScale), rot + SignedRandRange(WeaponSpread(m_Weapon)), ProjectileSpeed, true};
+                            projectile = Projectile{static_cast<float>(m_X * Board::SquareScale), static_cast<float>(m_Y * Board::SquareScale), rot + Context::SignedRandRange(WeaponSpread(m_Weapon)), ProjectileSpeed, true};
                             break;
                         }
                     }
@@ -766,16 +777,16 @@ public:
                 return true;
             }
         }
-        else if(UnsignedRandRange(2)) {
+        else if(Context::UnsignedRandRange(2)) {
             m_Ammo--;
-            Player& other = players.m_Data[UnsignedRandRange(static_cast<Dimension>(players.m_Size))];
+            Player& other = players.m_Data[Context::UnsignedRandRange(static_cast<Dimension>(players.m_Size))];
             Dimension dx = other.m_X - m_X;
             rot = atan(static_cast<float>(other.m_Y - m_Y) / static_cast<float>(dx));
             rot += dx < 0 ? M_PI : 0;
             for(Dimension i = 0; i < WeaponCount(m_Weapon); ++i) {
                 for(Projectile& projectile : m_Projectiles) {
                     if(!projectile.m_Shown) {
-                        projectile = Projectile{static_cast<float>(m_X * Board::SquareScale), static_cast<float>(m_Y * Board::SquareScale), rot + SignedRandRange(WeaponSpread(m_Weapon)), ProjectileSpeed, true};
+                        projectile = Projectile{static_cast<float>(m_X * Board::SquareScale), static_cast<float>(m_Y * Board::SquareScale), rot + Context::SignedRandRange(WeaponSpread(m_Weapon)), ProjectileSpeed, true};
                         break;
                     }
                 }
@@ -866,7 +877,8 @@ int main() {
                 Piece hit = projectile.DoMove(ctx, board, fired.m_Piece);
                 if(hit != Piece::None) {
                     projectile.m_Shown = false;
-                    float damage = WeaponDamage(fired.m_Weapon) + SignedRandRange(WeaponVariance(fired.m_Weapon));
+                    float damage = WeaponDamage(fired.m_Weapon) + Context::SignedRandRange(WeaponVariance(fired.m_Weapon));
+                    ctx.m_ShakeIntensity = static_cast<Dimension>(damage);
                     for(auto& other : players) {
                         if(hit == other.m_Piece) {
                             bool death = other.Hurt(damage);
