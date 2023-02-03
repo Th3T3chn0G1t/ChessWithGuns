@@ -27,3 +27,30 @@ Piece Projectile::DoMove(Context& ctx, Board& board, Piece ignore, bool boosted)
 
     return Piece::None;
 }
+
+Pickup::Pickup(Board& board) {
+    do {
+        m_X = Context::UnsignedRandRange(Board::Width - 1);
+        m_Y = Context::UnsignedRandRange(Board::Height - 1);
+    } while(board.Get(m_X, m_Y) != Piece::None);
+
+    if(Context::UnsignedRandRange(3)) board.Set(m_X, m_Y, Piece::AmmoPickup);
+    else if(Context::UnsignedRandRange(2)) board.Set(m_X, m_Y, Piece::BoostPickup);
+    else board.Set(m_X, m_Y, Piece::HealthPickup);
+}
+
+void Pickup::Place(Board& board) {
+    Dimension x = m_X;
+    Dimension y = m_Y;
+
+    do {
+        m_X = Context::UnsignedRandRange(Board::Width - 1);
+        m_Y = Context::UnsignedRandRange(Board::Height - 1);
+    } while(board.Get(m_X, m_Y) != Piece::None);
+
+    if(Context::UnsignedRandRange(3)) board.Set(m_X, m_Y, Piece::AmmoPickup);
+    else if(Context::UnsignedRandRange(2)) board.Set(m_X, m_Y, Piece::BoostPickup);
+    else board.Set(m_X, m_Y, Piece::HealthPickup);
+
+    board.Set(x, y, Piece::None);
+}

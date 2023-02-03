@@ -24,6 +24,18 @@ enum class Piece {
     BoostPickup
 };
 
+enum class Weapon {
+    None,
+
+    AimTest,
+
+    Pistol,
+    Shotgun,
+    ScienceGun,
+    Rifle,
+    RocketLauncher
+};
+
 struct PieceMove {
     Dimension m_Dx;
     Dimension m_Dy;
@@ -58,3 +70,19 @@ public:
 };
 
 std::vector<PieceMove> EnumeratePieceMoves(Piece piece);
+bool IsPickup(Piece piece);
+
+struct WeaponStats {
+    static std::unordered_map<Weapon, float> WeaponDamages;
+    static std::unordered_map<Weapon, float> WeaponSpreads;
+    static std::unordered_map<Weapon, float> WeaponVariances;
+    static std::unordered_map<Weapon, Dimension> WeaponCounts;
+    static std::unordered_map<Weapon, Dimension> WeaponAmmos;
+};
+
+class WeaponTextures {
+public:
+    std::unordered_map<Weapon, std::reference_wrapper<Texture>> m_Textures;
+
+    WeaponTextures(TextureLoaderWrapper& loader, Context& ctx);
+};

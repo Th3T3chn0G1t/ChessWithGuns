@@ -17,3 +17,12 @@ public:
 public:
     Piece DoMove(Context& ctx, Board& board, Piece ignore, bool boosted);
 };
+
+class Pickup {
+public:
+    Dimension m_X;
+    Dimension m_Y;
+
+    Pickup(Board& board);
+    void Place(Board& board);
+};
