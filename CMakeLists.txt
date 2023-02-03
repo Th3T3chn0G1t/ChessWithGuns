@@ -29,6 +29,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     file(GLOB CWG Source/*.cpp Source/Include/*.hpp)
 
     add_executable(CWG ${CWG})
+
+    target_precompile_headers(CWG PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:<CWGPCH.hpp$<ANGLE-R>>")
     include_directories(Source/Include)
+
     add_compile_definitions(_USE_MATH_DEFINES)
 #
