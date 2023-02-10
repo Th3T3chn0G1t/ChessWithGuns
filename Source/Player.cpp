@@ -59,7 +59,7 @@ std::vector<std::pair<Dimension, Dimension>> Player::EnumerateValidPositions(Boa
     return positions;
 }
 
-void Player::PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pickups) {
+void Player::PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pickups, SoundEffects& sound_effects) {
     Piece at = board.Get(x, y);
     if(at == Piece::AmmoPickup) {
         m_Ammo += 5;
@@ -74,6 +74,7 @@ void Player::PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pi
     }
 
     if(IsPickup(at)) {
+        sound_effects.m_PieceSounds.at(at).get().Play();
         for(size_t i = 0; i < pickups.m_Size; ++i) {
             if(pickups.m_Data[i].m_X == x && pickups.m_Data[i].m_Y == y) {
                 pickups.m_Data[i].Place(board);
@@ -84,7 +85,7 @@ void Player::PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pi
     }
 }
 
-bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups) {
+bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffects& sound_effects) {
     auto positions = EnumerateValidPositions(board);
     if(!m_AI) {
         for(auto& position : positions) {
@@ -99,7 +100,7 @@ bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups) {
 
             if(IsPointInRect(pos.first, pos.second, new_x * Board::SquareScale, new_y * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
                 if(ctx.WasMousePressed()) {
-                    PickupCheck(board, new_x, new_y, pickups);
+                    PickupCheck(board, new_x, new_y, pickups, sound_effects);
 
                     Move(board, position.first, position.second);
                     return true;
@@ -116,7 +117,7 @@ bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups) {
 
             Piece at = board.Get(m_X + position.first, m_Y + position.second);
             if(IsPickup(at)) {
-                PickupCheck(board, m_X + position.first, m_Y + position.second, pickups);
+                PickupCheck(board, m_X + position.first, m_Y + position.second, pickups, sound_effects);
 
                 Move(board, position.first, position.second);
                 return true;
@@ -126,7 +127,7 @@ bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups) {
         auto& position = positions[Context::UnsignedRandRange((int) positions.size())];
         if(!Board::IsInBounds(m_X + position.first, m_Y + position.second)) return false;
 
-        PickupCheck(board, m_X + position.first, m_Y + position.second, pickups);
+        PickupCheck(board, m_X + position.first, m_Y + position.second, pickups, sound_effects);
 
         Move(board, position.first, position.second);
         return true;

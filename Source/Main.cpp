@@ -5,12 +5,15 @@
 #include <Texture.hpp>
 #include <Elements.hpp>
 #include <Player.hpp>
+#include <SoundEffect.hpp>
 
 int main() {
     Context ctx{};
     TextureLoaderWrapper loader(TextureLoader("Resources"));
+    SoundEffectLoader sfx_loader("Resources");
     Board board(loader, ctx);
     WeaponTextures weapon_textures(loader, ctx);
+    SoundEffects sound_effects(sfx_loader);
 
     Context::DialogChoices<Weapon> weapons {
         {Weapon::None, "None"},
@@ -53,6 +56,8 @@ int main() {
         }
     };
 
+    bool do_sfx = Context::ChoiceDialog("SFX", "Should sound effects be enabled? (Not recommended for simulation play)");
+
     std::array<Pickup, 2> pickups{
         Pickup{board},
         Pickup{board}
@@ -60,6 +65,8 @@ int main() {
 
     Dimension turn = 0;
     Dimension dead = 0;
+
+    SoundEffect& next_turn = sfx_loader.Get("Turn.wav");
 
     while(ctx.Update()) {
         ctx.Clear(Color::Gray);
@@ -71,8 +78,15 @@ int main() {
             goto ui;
         }
 
-        if(player.DoMoves(ctx, board, Span<Pickup>(pickups)) || player.DoWeapon(ctx, weapon_textures, Span<Player>(players))) {
-            if(++turn >= players.size()) turn = 0;
+        {
+            bool did_move = player.DoMoves(ctx, board, Span<Pickup>(pickups), sound_effects);
+            bool did_weapon = player.DoWeapon(ctx, weapon_textures, Span<Player>(players));
+            if(do_sfx && did_move) next_turn.Play();
+            else if(do_sfx && did_weapon) sound_effects.m_WeaponSounds.at(player.m_Weapon).get().Play();
+
+            if(did_move || did_weapon) {
+                if(++turn >= players.size()) turn = 0;
+            }
         }
 
         for(auto& fired : players) {

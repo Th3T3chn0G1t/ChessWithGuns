@@ -7,7 +7,7 @@
 
 class Player {
 public:
-    static constexpr float MaxHealth = 100.0f;
+    static constexpr float MaxHealth = 1000.0f;
 
 private:
     static constexpr Dimension IndicatorScale = Board::SquareScale / 2;
@@ -39,8 +39,8 @@ public:
 
     void Move(Board& board, Dimension dx, Dimension dy);
     std::vector<std::pair<Dimension, Dimension>> EnumerateValidPositions(Board& board) const;
-    void PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pickups);
-    bool DoMoves(Context& ctx, Board& board, Span<Pickup> pickups);
+    void PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pickups, SoundEffects& sound_effects);
+    bool DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffects& sound_effects);
     bool DoWeapon(Context& ctx, WeaponTextures& textures, Span<Player> players);
     bool Hurt(float damage);
 };

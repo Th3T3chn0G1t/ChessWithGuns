@@ -3,11 +3,9 @@
 std::random_device Context::RNG{};
 
 Context::Context() {
-    int result = SDL_Init(SDL_INIT_EVERYTHING);
-    if(result < 0) throw std::runtime_error("Could not init SDL2");
-
-    result = IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF);
-    if(result < 0) throw std::runtime_error("Could not init SDL2_image");
+    SDLResultCheck(SDL_Init(SDL_INIT_EVERYTHING));
+    SDLResultCheck(IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF));
+    SDLResultCheck(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048));
 
     SDL_Window* window = SDL_CreateWindow(Title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     SDLNullCheck(window);
@@ -19,6 +17,7 @@ Context::Context() {
 }
 
 Context::~Context() {
+    Mix_CloseAudio();
     SDL_Quit();
 }
 

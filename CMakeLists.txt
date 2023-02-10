@@ -23,8 +23,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     link_libraries(${SDL2_IMAGE_LIBRARIES})
 #
 
+# SDL2_image
+    find_package(SDL2_mixer REQUIRED)
+    include_directories(${SDL2_MIXER_INCLUDE_DIRS})
+    link_libraries(${SDL2_MIXER_LIBRARIES})
+#
+
 # CWG
-    link_libraries(SDL2 SDL2_image)
+    link_libraries(SDL2 SDL2_image SDL2_mixer)
 
     file(GLOB CWG Source/*.cpp Source/Include/*.hpp)
 

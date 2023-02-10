@@ -92,3 +92,16 @@ WeaponTextures::WeaponTextures(TextureLoaderWrapper& loader, Context& ctx) {
     m_Textures.insert({Weapon::Rifle, loader.Get("Rifle.png", ctx)});
     m_Textures.insert({Weapon::RocketLauncher, loader.Get("RocketLauncher.png", ctx)});
 }
+
+SoundEffects::SoundEffects(SoundEffectLoader& loader) {
+    m_WeaponSounds.insert({Weapon::AimTest, loader.Get("Explosion.wav")});
+    m_WeaponSounds.insert({Weapon::Pistol, loader.Get("Explosion.wav")});
+    m_WeaponSounds.insert({Weapon::Shotgun, loader.Get("Explosion.wav")});
+    m_WeaponSounds.insert({Weapon::ScienceGun, loader.Get("Explosion.wav")});
+    m_WeaponSounds.insert({Weapon::Rifle, loader.Get("Explosion.wav")});
+    m_WeaponSounds.insert({Weapon::RocketLauncher, loader.Get("Explosion.wav")});
+
+    m_PieceSounds.insert({Piece::AmmoPickup, loader.Get("Power.wav")});
+    m_PieceSounds.insert({Piece::HealthPickup, loader.Get("Power.wav")});
+    m_PieceSounds.insert({Piece::BoostPickup, loader.Get("Power.wav")});
+}

@@ -40,6 +40,20 @@ public:
 
         return m_Resources[it->second];
     }
+
+    T& Get(const std::string& path) {
+        auto emplaced = m_Map.try_emplace(path, ResourcePoolSize);
+        auto it = emplaced.first;
+        auto added = emplaced.second;
+
+        if(added) {
+            std::string full_path = m_ResourceDirectory + "/" + path;
+            m_Resources[m_ResourcesLast] = std::move(T(full_path));
+            it->second = m_ResourcesLast++;
+        }
+
+        return m_Resources[it->second];
+    }
 };
 
 bool IsPointInRect(Dimension px, Dimension py, Dimension rx, Dimension ry, Dimension rw, Dimension rh);

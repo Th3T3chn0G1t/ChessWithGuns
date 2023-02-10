@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Util.hpp>
+#include <SoundEffect.hpp>
 
 enum class Piece {
     None,
@@ -48,7 +49,7 @@ struct TextureLoaderWrapper;
 
 class Board {
 public:
-    constexpr static Dimension SquareScale = 24;
+    constexpr static Dimension SquareScale = 64;
     constexpr static Dimension Width = 6;
     constexpr static Dimension Height = 6;
 
@@ -85,4 +86,12 @@ public:
     std::unordered_map<Weapon, std::reference_wrapper<Texture>> m_Textures;
 
     WeaponTextures(TextureLoaderWrapper& loader, Context& ctx);
+};
+
+class SoundEffects {
+public:
+    std::unordered_map<Weapon, std::reference_wrapper<SoundEffect>> m_WeaponSounds;
+    std::unordered_map<Piece, std::reference_wrapper<SoundEffect>> m_PieceSounds;
+
+    SoundEffects(SoundEffectLoader& loader);
 };
