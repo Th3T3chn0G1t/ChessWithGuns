@@ -86,12 +86,13 @@ int main() {
             if(r >= M_PI * 2) r = 0;
         }
 
-		if(sfx.Update(ctx)) {
+		bool pressed = ctx.WasMousePressed();
+		if(sfx.Update(ctx, pressed)) {
 			if(sfx.m_State) title_song.Loop(-1);
 			else Context::StopSounds();
 		}
 
-		switch(play.Update(ctx)) {
+		switch(play.Update(ctx, pressed)) {
 			case UIResult::None: {
 				play.m_Rotation = 0;
 				break;

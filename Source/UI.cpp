@@ -1,6 +1,6 @@
 #include <UI.hpp>
 
-bool Tickbox::Update(Context& ctx) {
+bool Tickbox::Update(Context& ctx, bool mouse_down) {
 	if(m_TextureOn.get().m_Dummy) {
 		ctx.DrawRect(m_X, m_Y, Board::SquareScale / 2, Board::SquareScale / 2, Color::Gray);
 		Dimension ds = (Board::SquareScale / 2) - (Board::SquareScale / 3);
@@ -12,19 +12,19 @@ bool Tickbox::Update(Context& ctx) {
 	}
 
 	auto p = Context::GetMousePosition();
-	if(ctx.IsMouseHeld() && (IsPointInRect(p.first, p.second, m_X, m_Y, Board::SquareScale / 2, Board::SquareScale / 2))) {
+	if(mouse_down && (IsPointInRect(p.first, p.second, m_X, m_Y, Board::SquareScale / 2, Board::SquareScale / 2))) {
 		m_State = !m_State;
 		return true;
 	}
 	return false;
 }
 
-UIResult Button::Update(Context& ctx) {
+UIResult Button::Update(Context& ctx, bool mouse_down) {
 	m_Texture.get().Draw(ctx, m_X, m_Y, m_Width, m_Height, m_Rotation);
 
 	auto p = Context::GetMousePosition();
 	if(IsPointInRect(p.first, p.second, m_X, m_Y, m_Width, m_Height)) {
-		return ctx.IsMouseHeld() ? UIResult::Click : UIResult::Hover;
+		return mouse_down ? UIResult::Click : UIResult::Hover;
 	}
 	return UIResult::None;
 }
