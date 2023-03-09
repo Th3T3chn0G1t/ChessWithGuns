@@ -16,5 +16,6 @@ public:
     SoundEffect(const std::string& path);
 
     void Play();
+    void Loop(Dimension loops);
 };
 using SoundEffectLoader = ResourceLoader<SoundEffect, 1024>;

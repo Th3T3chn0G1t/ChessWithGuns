@@ -21,6 +21,7 @@ int main() {
     Dimension x_off = 0;
     Dimension y_off = 0;
     float r = 0;
+    SoundEffect& title_song = sfx_loader.Get("Title.wav");
 
     struct MenuScroller {
         Dimension m_X;
@@ -56,6 +57,7 @@ int main() {
         menu_board.Set(scroller.m_X, scroller.m_Y, scroller.m_Piece);
     }
 
+    title_song.Loop(-1);
     while(ctx.Update()) {
         ctx.Clear(Color::Gray);
 

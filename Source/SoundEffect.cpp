@@ -9,3 +9,7 @@ SoundEffect::SoundEffect(const std::string& path) {
 void SoundEffect::Play() {
     Mix_PlayChannel(-1, m_Sound.get(), 0);
 }
+
+void SoundEffect::Loop(Dimension loops) {
+    Mix_PlayChannel(-1, m_Sound.get(), loops);
+}
