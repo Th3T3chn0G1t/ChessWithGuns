@@ -48,6 +48,8 @@ public:
     [[nodiscard]] static std::pair<Dimension, Dimension> GetMousePosition();
     void Resize(Dimension width, Dimension height);
 
+	static void StopSounds();
+
     template<class T>
     using DialogChoices = std::vector<std::pair<T, std::string>>;
 

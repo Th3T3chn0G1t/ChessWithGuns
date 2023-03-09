@@ -11,11 +11,11 @@ private:
 private:
     Handle m_Texture{};
 
-    bool m_Dummy;
 public:
     static Texture Dummy;
     Dimension m_Width{};
     Dimension m_Height{};
+	bool m_Dummy;
 
 public:
     Texture() : m_Dummy(true) {};

@@ -6,6 +6,7 @@
 #include <Elements.hpp>
 #include <Player.hpp>
 #include <SoundEffect.hpp>
+#include <UI.hpp>
 
 int main() {
     Context ctx{};
@@ -57,8 +58,13 @@ int main() {
         menu_board.Set(scroller.m_X, scroller.m_Y, scroller.m_Piece);
     }
 
-    title_song.Loop(-1);
-    while(ctx.Update()) {
+	Tickbox sfx { 0, 0, true, "SFX_On.png", "SFX_Off.png", ctx, loader.m_Loader };
+	Button play { (Context::Width / 2) - (Context::Width / 12), (Board::SquareScale / 2) + (Context::Width / 4), Context::Width / 6, Context::Width / 18, "PlayButton.png", ctx, loader.m_Loader };
+
+	title_song.Loop(-1);
+    while(true) {
+		if(!ctx.Update()) return 0;
+
         ctx.Clear(Color::Gray);
 
         {
@@ -73,12 +79,34 @@ int main() {
             }
         }
 
+		float rot = 2 * sinf(r);
         {
-            title.Draw(ctx, (Context::Width / 2) - (Context::Width / 2), Board::SquareScale / 2, Context::Width, Context::Width / 4, 2 * sinf(r));
+            title.Draw(ctx, (Context::Width / 2) - (Context::Width / 2), Board::SquareScale / 2, Context::Width, Context::Width / 4, rot);
             r += 0.05f;
             if(r >= M_PI * 2) r = 0;
         }
+
+		if(sfx.Update(ctx)) {
+			if(sfx.m_State) title_song.Loop(-1);
+			else Context::StopSounds();
+		}
+
+		switch(play.Update(ctx)) {
+			case UIResult::None: {
+				play.m_Rotation = 0;
+				break;
+			}
+			case UIResult::Hover: {
+				play.m_Rotation = 2 * rot;
+				break;
+			}
+			case UIResult::Click: goto game;
+		}
     }
+
+	game:;
+
+	bool do_sfx = sfx.m_State;
 
     Board::Width = 8;
     Board::Height = 8;
@@ -125,8 +153,6 @@ int main() {
             "Black", Color::Black
         }
     };
-
-    bool do_sfx = Context::ChoiceDialog("SFX", "Should sound effects be enabled? (Not recommended for simulation play)");
 
     std::array<Pickup, 2> pickups{
         Pickup{board},

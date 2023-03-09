@@ -58,6 +58,10 @@ bool Context::Update() {
     return true;
 }
 
+void Context::StopSounds() {
+    SDLResultCheck(Mix_HaltChannel(-1));
+}
+
 void Context::SetColor(Color color) {
     SDL_Color sdl_color = ColorToSDL(color);
     SDLResultCheck(SDL_SetRenderDrawColor(m_Renderer.get(), sdl_color.r, sdl_color.g, sdl_color.b, sdl_color.a));
