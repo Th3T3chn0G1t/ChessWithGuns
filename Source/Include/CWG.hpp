@@ -49,13 +49,13 @@ struct TextureLoaderWrapper;
 
 class Board {
 public:
-    constexpr static Dimension SquareScale = 64;
-    constexpr static Dimension Width = 6;
-    constexpr static Dimension Height = 6;
+    static Dimension SquareScale;
+    static Dimension Width;
+    static Dimension Height;
 
 private:
 
-    std::array<Piece, Width * Height> m_Board{};
+    std::vector<Piece> m_Board;
 
     std::unordered_map<Piece, std::reference_wrapper<Texture>> m_PieceTextures;
 
@@ -64,7 +64,7 @@ public:
 
     Board(TextureLoaderWrapper& loader, Context& ctx);
 
-    void Draw(Context& ctx);
+    void Draw(Context& ctx, Dimension x, Dimension y);
 
     void Set(Dimension x, Dimension y, Piece piece);
     Piece Get(Dimension x, Dimension y);

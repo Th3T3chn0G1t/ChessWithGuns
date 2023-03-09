@@ -2,6 +2,9 @@
 
 std::random_device Context::RNG{};
 
+Dimension Context::Width = 640;
+Dimension Context::Height = 480;
+
 Context::Context() {
     SDLResultCheck(SDL_Init(SDL_INIT_EVERYTHING));
     SDLResultCheck(IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF));
@@ -86,6 +89,12 @@ void Context::DrawRect(Dimension x, Dimension y, Dimension w, Dimension h, Color
     std::pair<Dimension, Dimension> ret;
     SDL_GetMouseState(&ret.first, &ret.second);
     return ret;
+}
+
+void Context::Resize(Dimension width, Dimension height) {
+    Width = width;
+    Height = height;
+    SDL_SetWindowSize(m_Window.get(), Width, Height);
 }
 
 bool Context::ChoiceDialog(const std::string& title, const std::string& message) {

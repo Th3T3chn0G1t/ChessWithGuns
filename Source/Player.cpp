@@ -94,7 +94,7 @@ bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffe
 
             if(!Board::IsInBounds(new_x, new_y)) continue;
 
-            ctx.DrawRect(new_x * Board::SquareScale, new_y * Board::SquareScale, IndicatorScale, IndicatorScale, Color::Green);
+            ctx.DrawRect(new_x * Board::SquareScale, new_y * Board::SquareScale, Board::SquareScale / 2, Board::SquareScale / 2, Color::Green);
 
             auto pos = Context::GetMousePosition();
 

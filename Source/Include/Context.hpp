@@ -17,8 +17,8 @@ private:
     static constexpr const char Title[] = "Chess with Guns";
 public:
     static constexpr Dimension SidebarWidth = 192;
-    static constexpr Dimension Width = Board::Width * Board::SquareScale + SidebarWidth;
-    static constexpr Dimension Height = Board::Height * Board::SquareScale;
+    static Dimension Width;
+    static Dimension Height;
 
     Dimension m_ShakeIntensity = 0;
 private:
@@ -46,6 +46,7 @@ public:
     [[nodiscard]] bool IsMouseHeld() const;
     [[nodiscard]] bool WasMousePressed();
     [[nodiscard]] static std::pair<Dimension, Dimension> GetMousePosition();
+    void Resize(Dimension width, Dimension height);
 
     template<class T>
     using DialogChoices = std::vector<std::pair<T, std::string>>;

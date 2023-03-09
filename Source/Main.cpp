@@ -11,10 +11,78 @@ int main() {
     Context ctx{};
     TextureLoaderWrapper loader(TextureLoader("Resources"));
     SoundEffectLoader sfx_loader("Resources");
-    Board board(loader, ctx);
     WeaponTextures weapon_textures(loader, ctx);
     SoundEffects sound_effects(sfx_loader);
 
+    Board::Width = (Context::Width / Board::SquareScale) + 3;
+    Board::Height = (Context::Height / Board::SquareScale) + 3;
+    Board menu_board(loader, ctx);
+    Texture& title = loader.Get("Title.png", ctx);
+    Dimension x_off = 0;
+    Dimension y_off = 0;
+    float r = 0;
+
+    struct MenuScroller {
+        Dimension m_X;
+        Dimension m_Y;
+        Piece m_Piece;
+
+        MenuScroller() {
+            if(Context::UnsignedRandRange(2)) {
+                m_X = Board::Width - 1;
+                m_Y = Context::UnsignedRandRange(Board::Height);
+            }
+            else {
+                m_X = Context::UnsignedRandRange(Board::Width);
+                m_Y = Board::Height - 1;
+            }
+            m_Piece = static_cast<Piece>(Context::UnsignedRandRange(15));
+        }
+
+        void Tick(Dimension x, Dimension y, Board& board) {
+            board.Set(m_X, m_Y, Piece::None);
+            m_X += x;
+            m_Y += y;
+            if(m_X < 0 || m_Y < 0) *this = MenuScroller();
+            else board.Set(m_X, m_Y, m_Piece);
+        }
+    };
+    std::vector<MenuScroller> scrollers;
+    scrollers.resize(15);
+
+    for(auto& scroller : scrollers) {
+        scroller.m_X = Context::UnsignedRandRange(Board::Width - 1);
+        scroller.m_Y = Context::UnsignedRandRange(Board::Height - 1);
+        menu_board.Set(scroller.m_X, scroller.m_Y, scroller.m_Piece);
+    }
+
+    while(ctx.Update()) {
+        ctx.Clear(Color::Gray);
+
+        {
+            menu_board.Draw(ctx, x_off--, y_off--);
+            if(x_off <= -Board::SquareScale) {
+                x_off = 0;
+                for(auto& scroller : scrollers) scroller.Tick(-1, 0, menu_board);
+            }
+            if(y_off <= -Board::SquareScale) {
+                y_off = 0;
+                for(auto& scroller : scrollers) scroller.Tick(0, -1, menu_board);
+            }
+        }
+
+        {
+            title.Draw(ctx, (Context::Width / 2) - (Context::Width / 2), Board::SquareScale / 2, Context::Width, Context::Width / 4, 2 * sinf(r));
+            r += 0.05f;
+            if(r >= M_PI * 2) r = 0;
+        }
+    }
+
+    Board::Width = 8;
+    Board::Height = 8;
+    ctx.Resize(Board::Width * Board::SquareScale + Context::SidebarWidth, Board::Height * Board::SquareScale);
+
+    Board board(loader, ctx);
     Context::DialogChoices<Weapon> weapons {
         {Weapon::None, "None"},
         {Weapon::AimTest, "Aim Test"},
@@ -70,7 +138,7 @@ int main() {
 
     while(ctx.Update()) {
         ctx.Clear(Color::Gray);
-        board.Draw(ctx);
+        board.Draw(ctx, 0, 0);
 
         auto& player = players[turn];
         if(player.m_Dead) {

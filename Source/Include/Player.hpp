@@ -10,7 +10,6 @@ public:
     static constexpr float MaxHealth = 1000.0f;
 
 private:
-    static constexpr Dimension IndicatorScale = Board::SquareScale / 2;
     static constexpr float ProjectileSpeed = 10.0f;
     static constexpr Dimension MaxProjectiles = 10;
 

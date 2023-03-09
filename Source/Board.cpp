@@ -3,11 +3,18 @@
 #include <Texture.hpp>
 #include <Context.hpp>
 
+Dimension Board::SquareScale = 64;
+Dimension Board::Width = 6;
+Dimension Board::Height = 6;
+
 bool Board::IsInBounds(Dimension x, Dimension y) {
     return !(x < 0 || y < 0 || x >= Board::Width || y >= Board::Height);
 }
 
-Board::Board(TextureLoaderWrapper& loader, Context& ctx) : m_Board{}, m_PieceTextures{} {
+Board::Board(TextureLoaderWrapper& loader, Context& ctx) : m_PieceTextures{} {
+    m_Board.resize(Width * Height);
+    std::fill(m_Board.begin(), m_Board.end(), Piece::None);
+
     m_PieceTextures.insert({Piece::None, Texture::Dummy});
 
     m_PieceTextures.insert({Piece::WhitePawn, loader.Get("WhitePawn.png", ctx)});
@@ -29,11 +36,11 @@ Board::Board(TextureLoaderWrapper& loader, Context& ctx) : m_Board{}, m_PieceTex
     m_PieceTextures.insert({Piece::BoostPickup, loader.Get("BoostPickup.png", ctx)});
 }
 
-void Board::Draw(Context& ctx) {
+void Board::Draw(Context& ctx, Dimension x, Dimension y) {
     for(Dimension i = 0; i < Height; ++i) {
         for(Dimension j = 0; j < Width; ++j) {
-            ctx.DrawRect(j * SquareScale, i * SquareScale, SquareScale, SquareScale, (j + i % 2) % 2 ? Color::Black : Color::White);
-            m_PieceTextures.at(m_Board[j + i * Width]).get().Draw(ctx, j * SquareScale, i * SquareScale, SquareScale, SquareScale);
+            ctx.DrawRect(x + j * SquareScale, y + i * SquareScale, SquareScale, SquareScale, (j + i % 2) % 2 ? Color::Black : Color::White);
+            m_PieceTextures.at(m_Board[j + i * Width]).get().Draw(ctx, x + j * SquareScale, y + i * SquareScale, SquareScale, SquareScale);
         }
     }
 }
