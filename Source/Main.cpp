@@ -9,6 +9,7 @@
 #include <UI.hpp>
 
 int main() {
+    restart:;
     Context ctx{};
     TextureLoaderWrapper loader(TextureLoader("Resources"));
     SoundEffectLoader sfx_loader("Resources");
@@ -23,6 +24,7 @@ int main() {
     Dimension y_off = 0;
     float r = 0;
     SoundEffect& title_song = sfx_loader.Get("Title.wav");
+    SoundEffect& next_turn = sfx_loader.Get("Turn.wav");
 
     struct MenuScroller {
         Dimension m_X;
@@ -58,8 +60,44 @@ int main() {
         menu_board.Set(scroller.m_X, scroller.m_Y, scroller.m_Piece);
     }
 
-	Tickbox sfx { 0, 0, true, "SFX_On.png", "SFX_Off.png", ctx, loader.m_Loader };
-	Button play { (Context::Width / 2) - (Context::Width / 12), (Board::SquareScale / 2) + (Context::Width / 4), Context::Width / 6, Context::Width / 18, "PlayButton.png", ctx, loader.m_Loader };
+	Tickbox sfx { 0, 0, Board::SquareScale / 2, true, "SFX_On.png", "SFX_Off.png", ctx, loader.m_Loader };
+    Dimension play_y = (Board::SquareScale / 2) + (Context::Width / 4);
+	Button play { (Context::Width / 2) - (Context::Width / 12), Context::Height - (Board::SquareScale + (Board::SquareScale / 2)), Context::Width / 6, Context::Width / 18, "PlayButton.png", ctx, loader.m_Loader };
+
+    std::array<std::string, 7> weapon_paths {
+        "None.png",
+        "AimTest.png",
+        "Pistol.png",
+        "Shotgun.png",
+        "ScienceGun.png",
+        "Rifle.png",
+        "RocketLauncher.png"
+    };
+
+    std::array<std::string, 6> black_piece_paths {
+        "BlackPawn.png",
+        "BlackRook.png",
+        "BlackBishop.png",
+        "BlackKnight.png",
+        "BlackKing.png",
+        "BlackQueen.png"
+    };
+    ArrowSelect black_piece_select { Board::SquareScale, play_y + (Board::SquareScale / 2), Board::SquareScale, Span<std::string>(black_piece_paths), ctx, loader.m_Loader };
+    ArrowSelect black_weapon_select { Board::SquareScale, black_piece_select.m_Y + Board::SquareScale + (Board::SquareScale / 4), Board::SquareScale, Span<std::string>(weapon_paths), ctx, loader.m_Loader };
+
+    std::array<std::string, 6> white_piece_paths {
+        "WhitePawn.png",
+        "WhiteRook.png",
+        "WhiteBishop.png",
+        "WhiteKnight.png",
+        "WhiteKing.png",
+        "WhiteQueen.png"
+    };
+    ArrowSelect white_piece_select { Context::Width - (4 * Board::SquareScale), play_y + (Board::SquareScale / 2), Board::SquareScale, Span<std::string>(white_piece_paths), ctx, loader.m_Loader };
+    ArrowSelect white_weapon_select { white_piece_select.m_X, white_piece_select.m_Y + Board::SquareScale + (Board::SquareScale / 4), Board::SquareScale, Span<std::string>(weapon_paths), ctx, loader.m_Loader };
+
+    Tickbox black_human { black_piece_select.m_X + Board::SquareScale, black_piece_select.m_Y + (2 * Board::SquareScale) + (Board::SquareScale / 2), Board::SquareScale, true, "Person.png", "Computer.png", ctx, loader.m_Loader };
+    Tickbox white_human { white_piece_select.m_X + Board::SquareScale, white_piece_select.m_Y + (2 * Board::SquareScale) + (Board::SquareScale / 2), Board::SquareScale, true, "Person.png", "Computer.png", ctx, loader.m_Loader };
 
 	title_song.Loop(-1);
     while(true) {
@@ -88,9 +126,20 @@ int main() {
 
 		bool pressed = ctx.WasMousePressed();
 		if(sfx.Update(ctx, pressed)) {
-			if(sfx.m_State) title_song.Loop(-1);
+			if(sfx.m_State) {
+                next_turn.Play();
+                title_song.Loop(-1);
+            }
 			else Context::StopSounds();
 		}
+
+        if(black_piece_select.Update(ctx, pressed) && sfx.m_State) next_turn.Play();
+        if(black_weapon_select.Update(ctx, pressed) && sfx.m_State) next_turn.Play();
+        if(black_human.Update(ctx, pressed) && sfx.m_State) next_turn.Play();
+
+        if(white_piece_select.Update(ctx, pressed) && sfx.m_State) next_turn.Play();
+        if(white_weapon_select.Update(ctx, pressed) && sfx.m_State) next_turn.Play();
+        if(white_human.Update(ctx, pressed) && sfx.m_State) next_turn.Play();
 
 		switch(play.Update(ctx, pressed)) {
 			case UIResult::None: {
@@ -105,7 +154,8 @@ int main() {
 		}
     }
 
-	game:;
+	game: Context::StopSounds();
+    next_turn.Play();
 
 	bool do_sfx = sfx.m_State;
 
@@ -114,42 +164,19 @@ int main() {
     ctx.Resize(Board::Width * Board::SquareScale + Context::SidebarWidth, Board::Height * Board::SquareScale);
 
     Board board(loader, ctx);
-    Context::DialogChoices<Weapon> weapons {
-        {Weapon::None, "None"},
-        {Weapon::AimTest, "Aim Test"},
-        {Weapon::Pistol, "Pistol"},
-        {Weapon::Shotgun, "Shotgun"},
-        {Weapon::ScienceGun, "Science Gun"},
-        {Weapon::Rifle, "Rifle"},
-        {Weapon::RocketLauncher, "Rocket Launcher"}
-    };
 
     std::array<Player, 2> players {
         Player{
-            Context::ChoiceDialog<Piece>({
-                { Piece::WhitePawn, "Pawn" },
-                { Piece::WhiteRook, "Rook"},
-                { Piece::WhiteBishop, "Bishop"},
-                { Piece::WhiteKnight, "Knight"},
-                { Piece::WhiteKing, "King"},
-                { Piece::WhiteQueen, "Queen"}
-            }, "White Piece", "White, please choose your piece!"),
-            Context::ChoiceDialog<Weapon>(weapons, "White Weapon", "White, please choose your weapon!"),
-            Context::ChoiceDialog("White AI", "Should White be AI-controlled?"),
+            static_cast<Piece>(static_cast<Dimension>(Piece::WhitePawn) + (white_piece_select.m_Current % white_piece_paths.size())),
+            static_cast<Weapon>(white_weapon_select.m_Current % weapon_paths.size()),
+            !white_human.m_State,
             Board::Width - 1, Board::Height - 1, board,
             "White", Color::White
         },
         Player{
-            Context::ChoiceDialog<Piece>({
-                { Piece::BlackPawn, "Pawn" },
-                { Piece::BlackRook, "Rook"},
-                { Piece::BlackBishop, "Bishop"},
-                { Piece::BlackKnight, "Knight"},
-                { Piece::BlackKing, "King"},
-                { Piece::BlackQueen, "Queen"}
-            }, "Black Piece", "Black, please choose your piece!"),
-            Context::ChoiceDialog<Weapon>(weapons, "Black Weapon", "Black, please choose your weapon!"),
-            Context::ChoiceDialog("Black AI", "Should Black be AI-controlled?"),
+            static_cast<Piece>(static_cast<Dimension>(Piece::BlackPawn) + (black_piece_select.m_Current % black_piece_paths.size())),
+            static_cast<Weapon>(black_weapon_select.m_Current % weapon_paths.size()),
+            !black_human.m_State,
             0, 0, board,
             "Black", Color::Black
         }
@@ -162,8 +189,6 @@ int main() {
 
     Dimension turn = 0;
     Dimension dead = 0;
-
-    SoundEffect& next_turn = sfx_loader.Get("Turn.wav");
 
     while(ctx.Update()) {
         ctx.Clear(Color::Gray);
@@ -197,20 +222,17 @@ int main() {
                         if(hit == other.m_Piece) {
                             bool death = other.Hurt(damage);
                             if(death) {
-                                Context::Dialog("Death", other.m_Name + " died");
                                 other.m_Dead = true;
                                 board.Set(other.m_X, other.m_Y, Piece::None);
                                 dead++;
                                 if(dead >= players.size() - 1) {
                                     Context::Dialog("Game Over", fired.m_Name + " won!");
-                                    return 0;
+                                    goto restart;
                                 }
                             }
                             goto ui;
                         }
                     }
-                    Context::Dialog("Error", "Invalid Hit");
-                    return 1;
                 }
             }
         }

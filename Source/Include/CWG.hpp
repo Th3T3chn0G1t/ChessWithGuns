@@ -53,11 +53,9 @@ public:
     static Dimension Width;
     static Dimension Height;
 
-private:
-
-    std::vector<Piece> m_Board;
-
     std::unordered_map<Piece, std::reference_wrapper<Texture>> m_PieceTextures;
+private:
+    std::vector<Piece> m_Board;
 
 public:
     static bool IsInBounds(Dimension x, Dimension y);
