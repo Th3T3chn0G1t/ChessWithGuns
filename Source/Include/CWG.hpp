@@ -28,8 +28,7 @@ enum class Piece {
 enum class Weapon {
     None,
 
-    AimTest,
-
+    Grenade,
     Pistol,
     Shotgun,
     ScienceGun,

@@ -7,7 +7,7 @@
 
 class Player {
 public:
-    static constexpr float MaxHealth = 1000.0f;
+    static constexpr float MaxHealth = 100.0f;
 
 private:
     static constexpr float ProjectileSpeed = 10.0f;
