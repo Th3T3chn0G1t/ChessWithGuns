@@ -8,7 +8,7 @@ Dimension Context::Height = 480;
 Context::Context() {
     SDLResultCheck(SDL_Init(SDL_INIT_EVERYTHING));
     SDLResultCheck(IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF));
-    SDLResultCheck(Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048));
+    SDLResultCheck(Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096));
 
     SDL_Window* window = SDL_CreateWindow(Title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     SDLNullCheck(window);
