@@ -34,10 +34,30 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
 
     file(GLOB CWG Source/*.cpp Source/Include/*.hpp)
 
-    add_executable(CWG ${CWG})
+    if(${APPLE})
+        add_executable(CWG MACOSX_BUNDLE ${CWG})
+    else()
+        add_executable(CWG ${CWG})
+    endif()
 
     target_precompile_headers(CWG PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:<CWGPCH.hpp$<ANGLE-R>>")
     include_directories(Source/Include)
 
     add_compile_definitions(_USE_MATH_DEFINES)
+
+    if(${APPLE})
+        set_target_properties(CWG PROPERTIES
+            MACOSX_BUNDLE_BUNDLE_NAME "Chess with Guns"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
+            MACOSX_BUNDLE_COPYRIGHT "SPDX-License-Identifier: GPL-3.0-or-later
+                Copyright (C) 2023 Emily \"TTG\" Banerjee <prs.ttg+cwg@pm.me>"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.th3t3chn0g1t.CWG"
+            # MACOSX_BUNDLE_ICON_FILE Sets CFBundleIconFile.
+            MACOSX_BUNDLE_LONG_VERSION_STRING "1.0.0"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0"
+        )
+        add_custom_command(TARGET CWG POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy Resources/ $<TARGET_FILE:CWG>/
+        )
+    endif()
 #
