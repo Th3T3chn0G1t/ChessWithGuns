@@ -16,22 +16,22 @@ Texture::Texture(const std::string& path, Context& ctx) : m_Dummy(false) {
     m_Width = surface->w;
     m_Height = surface->h;
 
-    SDL_FreeSurface(surface);
+    SDL_DestroySurface(surface);
 }
 
 void Texture::Draw(Context& ctx, Dimension x, Dimension y, Dimension width, Dimension height) {
     if(!m_Dummy) {
-        SDL_Rect src {0, 0, m_Width, m_Height};
-        SDL_Rect dest {x + Context::SignedRandRange(ctx.m_ShakeIntensity), y + Context::SignedRandRange(ctx.m_ShakeIntensity), width, height};
-        SDLResultCheck(SDL_RenderCopy(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest));
+        SDL_FRect src {0, 0, static_cast<float>(m_Width), static_cast<float>(m_Height)};
+        SDL_FRect dest {static_cast<float>(x + Context::SignedRandRange(ctx.m_ShakeIntensity)), static_cast<float>(y + Context::SignedRandRange(ctx.m_ShakeIntensity)), static_cast<float>(width), static_cast<float>(height)};
+        SDLResultCheck(SDL_RenderTexture(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest));
     }
 }
 
 void Texture::Draw(Context& ctx, Dimension x, Dimension y, Dimension width, Dimension height, float rotation) {
     if(!m_Dummy) {
-        SDL_Rect src {0, 0, m_Width, m_Height};
-        SDL_Rect dest {x + Context::SignedRandRange(ctx.m_ShakeIntensity), y + Context::SignedRandRange(ctx.m_ShakeIntensity), width, height};
-        SDLResultCheck(SDL_RenderCopyEx(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest, rotation, nullptr, SDL_FLIP_NONE));
+        SDL_FRect src {0, 0, static_cast<float>(m_Width), static_cast<float>(m_Height)};
+        SDL_FRect dest {static_cast<float>(x + Context::SignedRandRange(ctx.m_ShakeIntensity)), static_cast<float>(y + Context::SignedRandRange(ctx.m_ShakeIntensity)), static_cast<float>(width), static_cast<float>(height)};
+        SDLResultCheck(SDL_RenderTextureRotated(ctx.m_Renderer.get(), m_Texture.get(), &src, &dest, rotation, nullptr, SDL_FLIP_NONE));
     }
 }
 

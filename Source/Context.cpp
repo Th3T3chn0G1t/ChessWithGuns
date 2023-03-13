@@ -13,7 +13,7 @@ Dimension Context::Height = 480;
 #endif
 
 Context::Context() {
-    SDLResultCheck(SDL_Init(SDL_INIT_EVERYTHING));
+    SDLResultCheck(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS));
     SDLResultCheck(IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF));
     SDLResultCheck(Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096));
 
@@ -27,11 +27,11 @@ Context::Context() {
     m_ResourcePath = dir + "../Resources";
 #endif
 
-    SDL_Window* window = SDL_CreateWindow(Title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    SDL_Window* window = SDL_CreateWindow(Title, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL);
     SDLNullCheck(window);
     m_Window.reset(window);
 
-    SDL_Renderer* renderer = SDL_CreateRenderer(m_Window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Renderer* renderer = SDL_CreateRenderer(m_Window.get(), nullptr, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     SDLNullCheck(renderer);
     m_Renderer.reset(renderer);
 }
@@ -63,11 +63,11 @@ bool Context::Update() {
     SDL_Event event{};
     while(SDL_PollEvent(&event)) {
         switch(event.type) {
-            case SDL_QUIT: return false;
-            case SDL_KEYDOWN: m_KeyStates[(SDL_KeyCode) event.key.keysym.sym] = true; break;
-            case SDL_KEYUP: m_KeyStates[(SDL_KeyCode) event.key.keysym.sym] = false; break;
-            case SDL_MOUSEBUTTONDOWN: if(event.button.button == SDL_BUTTON_LEFT) m_MouseHeld = true; break;
-            case SDL_MOUSEBUTTONUP: if(event.button.button == SDL_BUTTON_LEFT) m_MouseHeld = false; break;
+            case SDL_EVENT_QUIT: return false;
+            case SDL_EVENT_KEY_DOWN: m_KeyStates[(SDL_KeyCode) event.key.keysym.sym] = true; break;
+            case SDL_EVENT_KEY_UP: m_KeyStates[(SDL_KeyCode) event.key.keysym.sym] = false; break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN: if(event.button.button == SDL_BUTTON_LEFT) m_MouseHeld = true; break;
+            case SDL_EVENT_MOUSE_BUTTON_UP: if(event.button.button == SDL_BUTTON_LEFT) m_MouseHeld = false; break;
             default: break;
         }
     }
@@ -92,7 +92,7 @@ void Context::Clear(Color color) {
 void Context::DrawRect(Dimension x, Dimension y, Dimension w, Dimension h, Color color) {
     SetColor(color);
 
-    SDL_Rect rect {x + SignedRandRange(m_ShakeIntensity), y + SignedRandRange(m_ShakeIntensity), w, h};
+    SDL_FRect rect {static_cast<float>(x + SignedRandRange(m_ShakeIntensity)), static_cast<float>(y + SignedRandRange(m_ShakeIntensity)), static_cast<float>(w), static_cast<float>(h)};
     SDLResultCheck(SDL_RenderFillRect(m_Renderer.get(), &rect));
 }
 
@@ -107,9 +107,9 @@ void Context::DrawRect(Dimension x, Dimension y, Dimension w, Dimension h, Color
 }
 
 [[nodiscard]] std::pair<Dimension, Dimension> Context::GetMousePosition() {
-    std::pair<Dimension, Dimension> ret;
+    std::pair<float, float> ret;
     SDL_GetMouseState(&ret.first, &ret.second);
-    return ret;
+    return std::pair<Dimension, Dimension> {static_cast<Dimension>(ret.first), static_cast<Dimension>(ret.second)};
 }
 
 void Context::Resize(Dimension width, Dimension height) {
