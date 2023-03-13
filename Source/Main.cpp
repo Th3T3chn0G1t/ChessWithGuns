@@ -14,8 +14,8 @@
 int main() {
     restart:;
     Context ctx{};
-    TextureLoaderWrapper loader(TextureLoader("Resources"));
-    SoundEffectLoader sfx_loader("Resources");
+    TextureLoaderWrapper loader(TextureLoader(ctx.m_ResourcePath));
+    SoundEffectLoader sfx_loader(ctx.m_ResourcePath);
     WeaponTextures weapon_textures(loader, ctx);
     SoundEffects sound_effects(sfx_loader);
 

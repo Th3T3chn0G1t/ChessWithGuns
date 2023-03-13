@@ -23,6 +23,8 @@ public:
     static Dimension Width;
     static Dimension Height;
 
+    std::string m_ResourcePath{"Resources/"};
+
     Dimension m_ShakeIntensity = 0;
 private:
     WindowHandle m_Window;

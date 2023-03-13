@@ -35,6 +35,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     file(GLOB CWG Source/*.cpp Source/Include/*.hpp)
 
     if(${APPLE})
+        link_libraries("-framework CoreFoundation")
         add_executable(CWG MACOSX_BUNDLE ${CWG})
     else()
         add_executable(CWG ${CWG})
@@ -50,14 +51,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
             MACOSX_BUNDLE_BUNDLE_NAME "Chess with Guns"
             MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
             MACOSX_BUNDLE_COPYRIGHT "SPDX-License-Identifier: GPL-3.0-or-later
-                Copyright (C) 2023 Emily \"TTG\" Banerjee <prs.ttg+cwg@pm.me>"
+                Copyright (C) 2023 Emily \"TTG\" Banerjee (prs.ttg+cwg@pm.me)" # Can't use angle brackets here
             MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.th3t3chn0g1t.CWG"
-            # MACOSX_BUNDLE_ICON_FILE Sets CFBundleIconFile.
+            MACOSX_BUNDLE_ICON_FILE "Icon.icns"
             MACOSX_BUNDLE_LONG_VERSION_STRING "1.0.0"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0"
         )
         add_custom_command(TARGET CWG POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy Resources/ $<TARGET_FILE:CWG>/
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/Resources ${CMAKE_BINARY_DIR}/CWG.app/Contents/Resources
         )
     endif()
 #

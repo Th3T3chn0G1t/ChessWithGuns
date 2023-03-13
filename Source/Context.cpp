@@ -8,10 +8,24 @@ std::random_device Context::RNG{};
 Dimension Context::Width = 640;
 Dimension Context::Height = 480;
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 Context::Context() {
     SDLResultCheck(SDL_Init(SDL_INIT_EVERYTHING));
     SDLResultCheck(IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP | IMG_INIT_JXL | IMG_INIT_AVIF));
     SDLResultCheck(Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096));
+
+#ifdef __APPLE__
+    char path[PATH_MAX + 1] {};
+    uint32_t sz = sizeof(path);
+    _NSGetExecutablePath(path, &sz);
+    std::string cxxpath { path };
+    size_t pos = cxxpath.rfind('/');
+    std::string dir = cxxpath.substr(0, pos + 1);
+    m_ResourcePath = dir + "../Resources";
+#endif
 
     SDL_Window* window = SDL_CreateWindow(Title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, Width, Height, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     SDLNullCheck(window);
