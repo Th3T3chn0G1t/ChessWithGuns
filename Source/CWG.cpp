@@ -37,7 +37,7 @@ bool IsPickup(Piece piece) {
 
 std::unordered_map<Weapon, float> WeaponStats::WeaponDamages {
     {Weapon::None, 0.0f},
-    {Weapon::AimTest, 11.0f},
+    {Weapon::Grenade, 11.0f},
     {Weapon::Pistol, 9.0f},
     {Weapon::Shotgun, 8.0f},
     {Weapon::ScienceGun, 5.0f},
@@ -47,7 +47,7 @@ std::unordered_map<Weapon, float> WeaponStats::WeaponDamages {
 
 std::unordered_map<Weapon, float> WeaponStats::WeaponSpreads {
     {Weapon::None, 0.0f},
-    {Weapon::AimTest, ((15.0f * static_cast<float>(M_PI)) / 180.0f)},
+    {Weapon::Grenade, ((360.0f * static_cast<float>(M_PI)) / 180.0f)},
     {Weapon::Pistol, ((10.0f * static_cast<float>(M_PI)) / 180.0f)},
     {Weapon::Shotgun, ((35.0f * static_cast<float>(M_PI)) / 180.0f)},
     {Weapon::ScienceGun, ((15.0f * static_cast<float>(M_PI)) / 180.0f)},
@@ -57,7 +57,7 @@ std::unordered_map<Weapon, float> WeaponStats::WeaponSpreads {
 
 std::unordered_map<Weapon, float> WeaponStats::WeaponVariances {
     {Weapon::None, 0.0f},
-    {Weapon::AimTest, 4.0f},
+    {Weapon::Grenade, 4.0f},
     {Weapon::Pistol, 2.0f},
     {Weapon::Shotgun, 1.0f},
     {Weapon::ScienceGun, 3.0f},
@@ -67,7 +67,7 @@ std::unordered_map<Weapon, float> WeaponStats::WeaponVariances {
 
 std::unordered_map<Weapon, Dimension> WeaponStats::WeaponCounts {
     {Weapon::None, 0},
-    {Weapon::AimTest, 300},
+    {Weapon::Grenade, 300},
     {Weapon::Pistol, 1},
     {Weapon::Shotgun, 7},
     {Weapon::ScienceGun, 3},
@@ -77,7 +77,7 @@ std::unordered_map<Weapon, Dimension> WeaponStats::WeaponCounts {
 
 std::unordered_map<Weapon, Dimension> WeaponStats::WeaponAmmos {
     {Weapon::None, 0},
-    {Weapon::AimTest, 6},
+    {Weapon::Grenade, 6},
     {Weapon::Pistol, 20},
     {Weapon::Shotgun, 15},
     {Weapon::ScienceGun, 6},
@@ -88,7 +88,7 @@ std::unordered_map<Weapon, Dimension> WeaponStats::WeaponAmmos {
 WeaponTextures::WeaponTextures(TextureLoaderWrapper& loader, Context& ctx) {
     m_Textures.insert({Weapon::None, Texture::Dummy});
 
-    m_Textures.insert({Weapon::AimTest, loader.Get("AimTest.png", ctx)});
+    m_Textures.insert({Weapon::Grenade, loader.Get("Grenade.png", ctx)});
     m_Textures.insert({Weapon::Pistol, loader.Get("Pistol.png", ctx)});
     m_Textures.insert({Weapon::Shotgun, loader.Get("Shotgun.png", ctx)});
     m_Textures.insert({Weapon::ScienceGun, loader.Get("ScienceGun.png", ctx)});
@@ -97,7 +97,7 @@ WeaponTextures::WeaponTextures(TextureLoaderWrapper& loader, Context& ctx) {
 }
 
 SoundEffects::SoundEffects(SoundEffectLoader& loader) {
-    m_WeaponSounds.insert({Weapon::AimTest, loader.Get("AimTest.wav")});
+    m_WeaponSounds.insert({Weapon::Grenade, loader.Get("Grenade.wav")});
     m_WeaponSounds.insert({Weapon::Pistol, loader.Get("Pistol.wav")});
     m_WeaponSounds.insert({Weapon::Shotgun, loader.Get("Shotgun.wav")});
     m_WeaponSounds.insert({Weapon::ScienceGun, loader.Get("ScienceGun.wav")});

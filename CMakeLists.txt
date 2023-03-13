@@ -23,7 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     link_libraries(${SDL2_IMAGE_LIBRARIES})
 #
 
-# SDL2_image
+# SDL2_mixer
     find_package(SDL2_mixer REQUIRED)
     include_directories(${SDL2_MIXER_INCLUDE_DIRS})
     link_libraries(${SDL2_MIXER_LIBRARIES})

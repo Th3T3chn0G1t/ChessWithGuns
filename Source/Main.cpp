@@ -69,7 +69,7 @@ int main() {
 
     std::array<std::string, 7> weapon_paths {
         "None.png",
-        "AimTest.png",
+        "Grenade.png",
         "Pistol.png",
         "Shotgun.png",
         "ScienceGun.png",
@@ -193,7 +193,9 @@ int main() {
     Dimension turn = 0;
     Dimension dead = 0;
 
-    while(ctx.Update()) {
+	SoundEffect& game_song = sfx_loader.Get("PawnWithAShotgun.wav");
+	game_song.Loop(-1);
+	while(ctx.Update()) {
         ctx.Clear(Color::Gray);
         board.Draw(ctx, 0, 0);
 
