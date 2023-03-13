@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-set(CMAKE_POLICY_DEFAULT_0077 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 cmake_policy(SET CMP0126 NEW)
 cmake_policy(SET CMP0077 NEW)
@@ -22,7 +22,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     set(SDL_POWER OFF)
     set(SDL_FILE OFF)
     set(SDL_TIMERS OFF)
-    set(SDL_CPUINFO OFF)
     set(SDL_FILESYSTEM OFF)
     set(SDL_SENSOR OFF)
     set(SDL_LOCALE OFF)
