@@ -71,6 +71,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     set(SDL3MIXER_VORBIS OFF)
     set(SDL3MIXER_WAVPACK OFF)
     set(SDL3MIXER_OGG OFF)
+    set(SDL3MIXER_VORBIS_STB OFF)
     add_subdirectory(${CMAKE_SOURCE_DIR}/Vendor/SDL_mixer)
 #
 
