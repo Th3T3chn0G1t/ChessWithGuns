@@ -5,7 +5,7 @@
 #include <Context.hpp>
 #include <Texture.hpp>
 
-Player::Player(Piece piece, Weapon weapon, bool ai, Dimension x, Dimension y, Board& board, std::string  name, Color color) : m_X(0), m_Y(0), m_Piece(piece), m_Weapon(weapon), m_AI(ai), m_Name(std::move(name)), m_Color(color) {
+Player::Player(Piece piece, Weapon weapon, bool ai, Dimension x, Dimension y, Board& board, std::string  name, Color color, Color ammo_color) : m_X(0), m_Y(0), m_Piece(piece), m_Weapon(weapon), m_AI(ai), m_Name(std::move(name)), m_Color(color), m_AmmoColor(ammo_color) {
     board.Set(m_X, m_Y, Piece::None);
     Move(board, x, y);
     m_Ammo = WeaponStats::WeaponAmmos[weapon];
@@ -88,7 +88,7 @@ void Player::PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pi
     }
 }
 
-bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffects& sound_effects) {
+bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffects& sound_effects, Dimension dx, Dimension dy) {
     auto positions = EnumerateValidPositions(board);
     if(!m_AI) {
         for(auto& position : positions) {
@@ -97,11 +97,11 @@ bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffe
 
             if(!Board::IsInBounds(new_x, new_y)) continue;
 
-            ctx.DrawRect(new_x * Board::SquareScale, new_y * Board::SquareScale, Board::SquareScale / 2, Board::SquareScale / 2, Color::Green);
+            ctx.DrawRect((new_x * Board::SquareScale) + dx, (new_y * Board::SquareScale) + dy, Board::SquareScale / 2, Board::SquareScale / 2, Color::Green);
 
             auto pos = Context::GetMousePosition();
 
-            if(IsPointInRect(pos.first, pos.second, new_x * Board::SquareScale, new_y * Board::SquareScale, Board::SquareScale, Board::SquareScale)) {
+            if(IsPointInRect(pos.first, pos.second, (new_x * Board::SquareScale) + dx, (new_y * Board::SquareScale) + dy, Board::SquareScale, Board::SquareScale)) {
                 if(ctx.WasMousePressed()) {
                     PickupCheck(board, new_x, new_y, pickups, sound_effects);
 
@@ -139,10 +139,10 @@ bool Player::DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffe
     return false;
 }
 
-bool Player::DoWeapon(Context& ctx, WeaponTextures& textures, Span<Player> players) {
+bool Player::DoWeapon(Context& ctx, WeaponTextures& textures, Span<Player> players, Dimension dx, Dimension dy) {
     auto pos = Context::GetMousePosition();
     float rot = atan(static_cast<float>(pos.second - m_Y * Board::SquareScale) / static_cast<float>(pos.first - m_X * Board::SquareScale));
-    textures.m_Textures.at(m_Weapon).get().Draw(ctx, m_X * Board::SquareScale, m_Y * Board::SquareScale, Board::SquareScale, Board::SquareScale, (rot * 180.0f) / static_cast<float>(M_PI));
+    textures.m_Textures.at(m_Weapon).get().Draw(ctx, m_X * Board::SquareScale + dx, m_Y * Board::SquareScale + dy, Board::SquareScale, Board::SquareScale, (rot * 180.0f) / static_cast<float>(M_PI));
 
     if(m_Ammo <= 0) return false;
 

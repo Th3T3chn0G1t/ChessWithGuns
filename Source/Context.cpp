@@ -5,8 +5,8 @@
 
 std::random_device Context::RNG{};
 
-Dimension Context::Width = 640;
-Dimension Context::Height = 480;
+Dimension Context::Width;
+Dimension Context::Height;
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>

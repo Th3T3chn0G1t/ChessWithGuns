@@ -18,6 +18,7 @@ SDL_Color ColorToSDL(Color color) {
         case Color::White: return {255, 255, 255, 255};
         case Color::Red: return {255, 0, 0, 255};
         case Color::Green: return {0, 255, 0, 255};
+        case Color::DarkGray: return {63, 63, 63};
         case Color::Gray: return {127, 127, 127};
         case Color::Blue: return {0, 0, 255};
     }

@@ -21,6 +21,7 @@ public:
     Piece m_Piece;
     Weapon m_Weapon;
     Color m_Color;
+    Color m_AmmoColor;
 
     Dimension m_Ammo;
 
@@ -37,12 +38,12 @@ public:
     std::array<Projectile, MaxProjectiles> m_Projectiles{};
 
 public:
-    Player(Piece piece, Weapon weapon, bool ai, Dimension x, Dimension y, Board& board, std::string  name, Color color);
+    Player(Piece piece, Weapon weapon, bool ai, Dimension x, Dimension y, Board& board, std::string  name, Color color, Color ammo_color);
 
     void Move(Board& board, Dimension dx, Dimension dy);
     std::vector<std::pair<Dimension, Dimension>> EnumerateValidPositions(Board& board) const;
     void PickupCheck(Board& board, Dimension x, Dimension y, Span<Pickup> pickups, SoundEffects& sound_effects);
-    bool DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffects& sound_effects);
-    bool DoWeapon(Context& ctx, WeaponTextures& textures, Span<Player> players);
+    bool DoMoves(Context& ctx, Board& board, Span<Pickup> pickups, SoundEffects& sound_effects, Dimension dx, Dimension dy);
+    bool DoWeapon(Context& ctx, WeaponTextures& textures, Span<Player> players, Dimension dx, Dimension dy);
     bool Hurt(float damage);
 };

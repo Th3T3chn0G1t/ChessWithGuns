@@ -18,7 +18,7 @@ public:
     bool m_Shown;
 
 public:
-    Piece DoMove(Context& ctx, Board& board, Piece ignore, bool boosted);
+    Piece DoMove(Context& ctx, Board& board, Piece ignore, bool boosted, Dimension dx, Dimension dy);
 };
 
 class Pickup {

@@ -6,7 +6,7 @@ cmake_policy(SET CMP0126 NEW)
 cmake_policy(SET CMP0077 NEW)
 cmake_policy(SET CMP0102 NEW)
 
-project(CWG LANGUAGES CXX OBJC)
+project(CWG LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
@@ -99,9 +99,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
     endif()
 
     target_link_libraries(CWG PUBLIC SDL3::SDL3 SDL3_image::SDL3_image-static SDL3_mixer::SDL3_mixer-static)
-    if(${WIN32})
-        target_link_libraries(CWG PUBLIC SDL3main)
-    endif()
 
     target_precompile_headers(CWG PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:<CWGPCH.hpp$<ANGLE-R>>")
     target_include_directories(CWG PUBLIC Source/Include)
