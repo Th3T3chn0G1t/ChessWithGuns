@@ -60,3 +60,4 @@ public:
 };
 
 bool IsPointInRect(Dimension px, Dimension py, Dimension rx, Dimension ry, Dimension rw, Dimension rh);
+Dimension Centre(Dimension width, Dimension item);

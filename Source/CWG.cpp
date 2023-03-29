@@ -2,7 +2,7 @@
 // Copyright (C) 2023 Emily "TTG" Banerjee <prs.ttg+cwg@pm.me>
 
 #include <CWG.hpp>
-#include "Texture.hpp"
+#include <Texture.hpp>
 
 std::vector<PieceMove> EnumeratePieceMoves(Piece piece) {
     switch(piece) {
@@ -108,3 +108,4 @@ SoundEffects::SoundEffects(SoundEffectLoader& loader) {
     m_PieceSounds.insert({Piece::HealthPickup, loader.Get("Health.wav")});
     m_PieceSounds.insert({Piece::BoostPickup, loader.Get("Boost.wav")});
 }
+

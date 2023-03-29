@@ -60,7 +60,7 @@ public:
 
     template<class T>
     static T ChoiceDialog(DialogChoices<T> options, const std::string& title, const std::string& message) {
-        auto* buttons = new SDL_MessageBoxButtonData[options.size()];
+        auto buttons = std::make_unique<SDL_MessageBoxButtonData[]>(options.size());
         for(Dimension i = 0; i < options.size(); ++i) {
             buttons[i] = SDL_MessageBoxButtonData{ 0, (int) options[i].first, options[i].second.c_str() };
         }
@@ -69,7 +69,6 @@ public:
         T result;
         SDLResultCheck(SDL_ShowMessageBox(&data, (int*) &result));
 
-        delete[] buttons;
         return result;
     }
 

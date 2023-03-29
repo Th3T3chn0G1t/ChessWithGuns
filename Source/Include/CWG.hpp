@@ -95,3 +95,22 @@ public:
 
     SoundEffects(SoundEffectLoader& loader);
 };
+
+struct GameSettings {
+    struct {
+        Dimension m_TitleScrollers;
+    } m_UISettings;
+
+    bool m_SFX;
+    bool m_MoveTimer;
+
+    Piece m_WhitePiece;
+    Weapon m_WhiteWeapon;
+    bool m_WhiteAI;
+
+    Piece m_BlackPiece;
+    Weapon m_BlackWeapon;
+    bool m_BlackAI;
+};
+
+void DoMenu(Context& ctx, GameSettings& settings, TextureLoaderWrapper& loader, SoundEffectLoader& sfx_loader);

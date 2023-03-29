@@ -95,7 +95,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/Resources ${CMAKE_BINARY_DIR}/CWG.app/Contents/Resources
         )
     else()
-        add_executable(CWG ${CWG})
+        add_executable(CWG ${CWG} Source/Menu.cpp)
     endif()
 
     target_link_libraries(CWG PUBLIC SDL3::SDL3 SDL3_image::SDL3_image-static SDL3_mixer::SDL3_mixer-static)
